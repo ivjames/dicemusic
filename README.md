@@ -65,5 +65,5 @@ base URL is given. Screenshots land in `test/shots/` (gitignored). Set `NODE_PAT
 
 - The trio (one die, measures T1–T96) is not implemented.
 - The tone is a synthesised struck string, not a sampled fortepiano.
-- No deploy scaffold yet (operate CLI, vhost template, runbook): the site is plain static files
-  and can be served from any web root, but the lab980 `new-site` scaffold has not been run for it.
+- Modules under `js/` are cached heuristically by browsers after a deploy; only `index.html`
+  is served `no-cache`. See `DEPLOY.md` for the droplet side.
