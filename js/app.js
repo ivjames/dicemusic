@@ -19,6 +19,7 @@ const state = {
   rendered: new Map(),        // bufferKey -> Float32Array at the player's sample rate
   renderedRate: 0,
   busy: false,
+  generation: 0,              // bumped on every change to the plan, so a render in flight can notice
 };
 
 // ---------- status / errors ----------
@@ -123,6 +124,7 @@ function setPairs(pairs, { fromLink = false } = {}) {
   state.pairs = pairs;
   state.bars = pairs.every(isPair) ? composeFrom(pairs) : null;
   state.plan = state.bars ? playbackPlan(state.bars.map((b) => b.measure), state.repeats) : [];
+  state.generation++;
   renderBars();
   highlight(-1);
   if (!fromLink) updateUrl();
@@ -140,6 +142,16 @@ function shareUrl() {
 
 // ---------- audio ----------
 async function ensureRendered() {
+  // The plan can change while this yields (a reroll, the repeats toggle). Keep going until a
+  // pass finds nothing missing for the plan as it stands now.
+  for (;;) {
+    const gen = state.generation;
+    await renderMissing();
+    if (gen === state.generation) return;
+  }
+}
+
+async function renderMissing() {
   const sr = player.sampleRate;
   if (state.renderedRate !== sr) { state.rendered.clear(); state.renderedRate = sr; }
   const missing = [];
@@ -280,6 +292,7 @@ function init() {
     state.repeats = e.target.checked;
     if (player.state !== 'idle') { player.stop(); syncControls(); }
     if (state.bars) state.plan = playbackPlan(state.bars.map((b) => b.measure), state.repeats);
+    state.generation++;
     renderBars(); updateUrl();
   });
   document.addEventListener('keydown', (e) => {

@@ -173,6 +173,26 @@ async function main() {
     await page.uncheck('#repeats');
   });
 
+  await step('changing the plan while sound is being prepared does not break playback', async () => {
+    // Force a fresh render, press Play, and flip repeats before rendering can finish.
+    await page.evaluate(() => { window.__mozart.state.rendered.clear(); });
+    await page.click('#roll');
+    await page.evaluate(() => { window.__mozart.state.rendered.clear(); });
+    await page.click('#play');
+    await page.click('#repeats');
+    await cards().nth(3).locator('.reroll').click();
+    await page.waitForFunction(() => window.__mozart.player.state !== 'idle' || document.querySelector('#status.is-error'), null, { timeout: 15000 }).catch(() => {});
+    assert.equal(await page.locator('#status.is-error').count(), 0, await page.locator('#status').innerText());
+    const plan = await page.evaluate(() => window.__mozart.state.plan.length);
+    assert.equal(plan, 32);
+    // Whatever the timing, a Play now must work with the 32-step plan.
+    if (await page.evaluate(() => window.__mozart.player.state) === 'idle') await page.click('#play');
+    await page.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => window.__mozart.player.plan.length), 32);
+    await page.click('#stop');
+    await page.uncheck('#repeats');
+  });
+
   await step('keyboard: lock and reroll buttons are reachable and labelled; Space toggles play', async () => {
     const lock = cards().nth(0).locator('.lock');
     await lock.focus(); await page.keyboard.press('Enter');
