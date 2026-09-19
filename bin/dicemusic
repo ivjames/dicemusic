@@ -151,8 +151,8 @@ EOF
         log "waiting for $FQDN to resolve to $IP (up to ~5 min) ..."
         local ok=0 got=""
         for _ in $(seq 1 30); do
-          if command -v dig >/dev/null; then got="$(dig +short "$FQDN" | tail -1)"
-          else got="$(getent hosts "$FQDN" | awk '{print $1}' | head -1)"; fi
+          if command -v dig >/dev/null; then got="$(dig +short "$FQDN" | tail -1 || true)"
+          else got="$(getent hosts "$FQDN" | awk '{print $1}' | head -1 || true)"; fi
           [ "$got" = "$IP" ] && { ok=1; break; }
           sleep 10
         done
