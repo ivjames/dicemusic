@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Musical Dice Game</title>
+<meta name="description" content="Roll two dice sixteen times and hear the minuet they choose: the Musikalisches Würfelspiel commonly attributed to Mozart, played in your browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect x='1' y='1' width='18' height='18' rx='4' fill='%23f4efe6' stroke='%23231f1a'/%3E%3Ccircle cx='6' cy='6' r='1.8' fill='%23231f1a'/%3E%3Ccircle cx='14' cy='6' r='1.8' fill='%23231f1a'/%3E%3Ccircle cx='10' cy='10' r='1.8' fill='%23231f1a'/%3E%3Ccircle cx='6' cy='14' r='1.8' fill='%23231f1a'/%3E%3Ccircle cx='14' cy='14' r='1.8' fill='%23231f1a'/%3E%3C/svg%3E">
+</head>
+<body>
+<a class="skip" href="#controls">Skip to controls</a>
+<header class="masthead">
+  <p class="kicker">Musikalisches Würfelspiel · K. 516f</p>
+  <h1>Musical Dice Game</h1>
+  <p class="lede">A musical dice game commonly attributed to Mozart. Roll two dice for each of sixteen bars, look each total up in the published table, and hear the minuet that falls out.</p>
+</header>
+
+<main>
+  <section class="controls" id="controls" aria-label="Composition controls">
+    <div class="row row-roll">
+      <button type="button" id="roll" class="btn btn-primary">Roll &amp; Compose</button>
+      <button type="button" id="roll-unlocked" class="btn" disabled>Roll Unlocked</button>
+    </div>
+    <div class="row row-transport" role="group" aria-label="Playback">
+      <button type="button" id="play" class="btn btn-play" aria-label="Play the minuet" disabled>Play</button>
+      <button type="button" id="stop" class="btn" aria-label="Stop playback" disabled>Stop</button>
+      <label class="check"><input type="checkbox" id="repeats"> <span>Play with repeats</span></label>
+    </div>
+    <div class="row row-export">
+      <button type="button" id="download" class="btn" disabled>Download WAV</button>
+      <button type="button" id="share" class="btn" disabled>Copy link</button>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <p id="position" class="position" aria-live="polite"></p>
+    <input id="share-url" class="share-url" type="text" readonly aria-label="Shareable link" hidden>
+  </section>
+
+  <section aria-labelledby="bars-heading">
+    <h2 id="bars-heading" class="visually-hidden">The sixteen bars</h2>
+    <ol id="bars" class="bars" aria-label="The sixteen bars of the minuet"></ol>
+    <p id="summary" class="summary" hidden></p>
+  </section>
+
+  <section class="prose" id="how" aria-labelledby="how-heading">
+    <h2 id="how-heading">How it works</h2>
+    <p>The game, published by Nikolaus Simrock in 1793 under Mozart's name, supplies 176 numbered one-bar pieces of music and a table with eleven rows (dice totals 2 to 12) and sixteen columns (the bars of a minuet). For each bar you throw two dice and play the numbered measure the table names. Every row of a column fits the same place in the same harmony, so any throw yields a coherent minuet in C major.</p>
+    <p>This page does exactly that. Two independent fair dice are simulated for every bar and their faces are kept, not just the total, so seven comes up far more often than two or twelve, just as at a table. The URL records those dice and your locks; open it anywhere and the same minuet is rebuilt. Bar 8 has one printed version with a first and a second ending, and bar 16 two; the other fourteen bars each have eleven, which gives 11<sup>14</sup> × 2 selection sequences. Many of those sequences contain the same music, since several table entries are identical measures, so that number is not a count of distinct pieces.</p>
+    <p>The sound is made in your browser from the notes of the public-domain score, with a plain struck-string tone, and the WAV you download is the same rendering laid end to end. Nothing is fetched while you play. "Play with repeats" performs the minuet as printed, each half twice, with the first ending the first time through bar 8.</p>
+    <p>Whether Mozart wrote the game is unverified: his name is on the cover, and a manuscript of 176 bars in his hand from 1787 exists without instructions or dice, but the link between the two has not been established. <a href="https://en.wikipedia.org/wiki/Musikalisches_W%C3%BCrfelspiel">More background</a>. The trio of the published game, which uses one die, is not included yet.</p>
+    <h2>Sources</h2>
+    <ul class="sources">
+      <li>Rules and lookup table: <a href="https://introcs.cs.princeton.edu/java/assignments/mozart.html">Princeton COS 126, <i>Mozart Waltz Generator</i></a>, which reproduces the Simrock table.</li>
+      <li>Score: <a href="https://imslp.org/wiki/Musikalisches_W%C3%BCrfelspiel,_K.516f_(Mozart,_Wolfgang_Amadeus)">K. 516f, Simrock, Bonn 1793</a> (public domain, IMSLP). The notes were taken from three independent transcriptions and cross-checked against the print: <a href="https://github.com/justineuro/mdginabc2svg">Justine Leon A. Uro's ABC transcription</a> (CC BY 4.0), <a href="https://github.com/craigsapp/Musikalisches-Wuerfelspiel">Craig Stuart Sapp, Daniel Shanahan and Mauricio Rodriguez's Humdrum encoding</a>, and <a href="https://github.com/Xpktro/wurfelspiel">Moisés Cachay's LilyPond encoding</a> (Apache 2.0).</li>
+      <li>Audio: synthesised here from those notes. Princeton's recordings were not reused because the archive states no licence.</li>
+    </ul>
+  </section>
+</main>
+<footer class="foot"><p>Keyboard: Tab moves between controls; Space plays or pauses when no button is focused. Sound starts only after you press Play.</p></footer>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
