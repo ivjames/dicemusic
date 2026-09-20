@@ -202,7 +202,16 @@ async function onPlay() {
   playLock = true;
   try {
     if (player.state === 'playing') { player.pause(); return; }
-    if (player.state === 'paused') { await player.ensureContext(); player.play(); return; }
+    if (player.state === 'paused') {
+      await player.ensureContext();
+      if (player.needsReload) {       // the context was swapped for one at another sample rate
+        const from = player.pausedAtSample; const oldRate = player.floatRate;
+        await ensureRendered();
+        player.load(state.plan, state.rendered, (s) => bufferKey(s.measureId, s.ending));
+        player.pausedAtSample = Math.round(from * player.sampleRate / oldRate); player.state = 'paused';
+      }
+      player.play(); return;
+    }
     await player.ensureContext();
     await ensureRendered();
     if (player.state !== 'idle') return;   // something changed while rendering
@@ -302,7 +311,14 @@ function init() {
     syncControls();
     if (reason === 'interrupted') say('Playback was interrupted by the system. Press Resume to continue.', { sticky: true });
   });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && player.state === 'playing' && !raf) raf = requestAnimationFrame(tick); });
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    // Coming back from another app: iOS may hand us a context that says "running" but never ticks.
+    await player.checkAfterReturn();
+    syncControls();
+    if (player.state === 'playing' && !raf) raf = requestAnimationFrame(tick);
+  });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) { player.stale = true; if (player.state !== 'idle') { player.stop(); syncControls(); } } });
 
   if (!player.supported) say('This browser has no Web Audio support, so nothing can be played here.', { error: true, sticky: true });
 
