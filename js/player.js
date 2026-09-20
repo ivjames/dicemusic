@@ -16,6 +16,10 @@ export class Player {
     this.pausedAtSample = 0;
     this.generation = 0;
     this.listeners = new Set();
+    this.floatBuffers = null;       // last Float32Array map given to load(), to rebuild after a context swap
+    this.floatRate = 0;
+    this.stale = false;             // context judged dead (iOS after backgrounding): swap it on the next gesture
+    this.needsReload = false;       // a swapped context runs at another sample rate; buffers must be re-rendered
   }
 
   onChange(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -27,21 +31,80 @@ export class Player {
   /** Create (and, on iOS, unlock) the context. Must be called from a user gesture. */
   async ensureContext() {
     if (!AC) throw new Error('This browser has no Web Audio support.');
-    if (!this.ctx) {
-      try { this.ctx = new AC({ latencyHint: 'playback' }); } catch { this.ctx = new AC(); }
-      this.ctx.addEventListener('statechange', () => this.handleStateChange());
-    }
-    if (this.ctx.state !== 'running') {
-      try { await this.ctx.resume(); } catch { /* fall through to the check below */ }
-    }
-    if (this.ctx.state !== 'running') {
-      // iOS needs a sound started inside the gesture before it will run the clock.
-      const b = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
-      const s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.ctx.destination); s.start();
-      await this.ctx.resume();
+    if (this.ctx && (this.stale || this.ctx.state === 'closed')) await this.replaceContext();
+    if (!this.ctx) this.createContext();
+    const wasRunning = this.ctx.state === 'running';
+    await this.wake();
+    // Only a context we had to wake gets the clock test, so a normal Play does not wait for it.
+    if (this.ctx.state !== 'running' || (!wasRunning && !(await this.clockAdvances()))) {
+      // iOS Safari after a trip through the background: resume() may "succeed" on a context
+      // whose clock never moves again. A fresh context on this same gesture does work.
+      await this.replaceContext();
+      await this.wake();
     }
     if (this.ctx.state !== 'running') throw new Error('Audio could not be started. Try tapping Play again, or check the silent switch.');
     return this.ctx;
+  }
+
+  createContext() {
+    try { this.ctx = new AC({ latencyHint: 'playback' }); } catch { this.ctx = new AC(); }
+    this.ctx.addEventListener('statechange', () => this.handleStateChange());
+    this.stale = false;
+  }
+
+  /** Resume the context, with the silent-buffer nudge iOS needs inside a gesture. */
+  async wake() {
+    if (this.ctx.state !== 'running') {
+      try { await this.ctx.resume(); } catch { /* checked below */ }
+    }
+    if (this.ctx.state !== 'running') {
+      try {
+        const b = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+        const s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.ctx.destination); s.start();
+        await this.ctx.resume();
+      } catch { /* checked by the caller */ }
+    }
+  }
+
+  /** True when the context's clock moves within a short wait. A frozen clock means a dead context. */
+  async clockAdvances(waitMs = 120) {
+    if (!this.ctx || this.ctx.state !== 'running') return false;
+    const t0 = this.ctx.currentTime;
+    await new Promise((r) => setTimeout(r, waitMs));
+    return this.ctx.currentTime > t0;
+  }
+
+  /** Throw the current context away and build a new one, keeping the position and the rendered audio. */
+  async replaceContext() {
+    const old = this.ctx;
+    if (this.state === 'playing') { this.pausedAtSample = this.positionSample(); this.state = 'paused'; }
+    this.stopSources();
+    this.createContext();
+    if (old) { try { await old.close(); } catch { /* already closed */ } }
+    // Reinstall only if the rendered audio is at this context's rate. Compare with the rate the
+    // buffers were rendered at, not the previous context's: after a rate-changing swap that has
+    // not been reloaded yet, a second swap back to the original rate must not clear needsReload.
+    if (this.floatBuffers && this.ctx.sampleRate === this.floatRate) {
+      this.installBuffers(this.plan, this.floatBuffers, this.keyOf);
+      this.needsReload = false;
+    } else if (this.floatBuffers) {
+      this.needsReload = true;      // different rate: the app must re-render at the new rate and load again
+    }
+    this.emit('context-replaced');
+  }
+
+  /** Called by the page when it comes back to the foreground: decide whether the context survived. */
+  async checkAfterReturn() {
+    if (!this.ctx) return;
+    if (this.ctx.state !== 'running' || !(await this.clockAdvances(250))) {
+      this.stale = true;
+      if (this.state === 'playing') {
+        this.pausedAtSample = this.positionSample();
+        this.stopSources();
+        this.state = 'paused';
+        this.emit('interrupted');
+      }
+    }
   }
 
   handleStateChange() {
@@ -59,7 +122,15 @@ export class Player {
   /** Install a plan and its rendered buffers (Float32Arrays keyed by bufferKey). */
   load(plan, floatBuffers, keyOf) {
     this.stop();
+    this.installBuffers(plan, floatBuffers, keyOf);
+    this.needsReload = false;
+  }
+
+  installBuffers(plan, floatBuffers, keyOf) {
     this.plan = plan;
+    this.floatBuffers = floatBuffers;
+    this.floatRate = this.sampleRate;
+    this.keyOf = keyOf;
     this.buffers = new Map();
     const sr = this.sampleRate;
     for (const step of plan) {
@@ -71,7 +142,6 @@ export class Player {
       ab.getChannelData(0).set(data);
       this.buffers.set(key, ab);
     }
-    this.keyOf = keyOf;
   }
 
   get totalSamples() { return this.plan.length ? planSamples(this.plan, this.sampleRate) : 0; }
@@ -79,7 +149,9 @@ export class Player {
 
   /** Current position in samples from the start of the plan. */
   positionSample() {
-    if (this.state === 'playing' && this.ctx) return Math.max(0, Math.round((this.ctx.currentTime - this.startedAt) * this.sampleRate));
+    // During the short pre-roll before the first scheduled sample the clock reads behind the
+    // start point; never report a position earlier than where playback was scheduled from.
+    if (this.state === 'playing' && this.ctx) return Math.max(this.scheduledFrom || 0, Math.round((this.ctx.currentTime - this.startedAt) * this.sampleRate));
     if (this.state === 'paused') return this.pausedAtSample;
     return 0;
   }
@@ -104,6 +176,7 @@ export class Player {
     const gen = ++this.generation;
     const t0 = this.ctx.currentTime + 0.08;
     this.startedAt = t0 - fromSample / sr;
+    this.scheduledFrom = fromSample;
     this.sources = [];
     const firstBar = Math.min(this.plan.length - 1, Math.floor(fromSample / stride));
     for (let k = firstBar; k < this.plan.length; k++) {

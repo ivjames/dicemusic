@@ -193,6 +193,31 @@ async function main() {
     await page.uncheck('#repeats');
   });
 
+  await step('a context judged dead after returning from the background is replaced, from idle and from paused', async () => {
+    // From idle: mark the context stale (what checkAfterReturn does on iOS) and press Play.
+    const before = await page.evaluate(() => { window.__mozart.player.stale = true; return window.__mozart.player.ctx.sampleRate; });
+    await page.click('#play');
+    await page.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => window.__mozart.player.stale), false);
+    assert.equal(await page.evaluate(() => window.__mozart.player.ctx.state), 'running');
+    await page.waitForTimeout(400);
+    // From paused: pause, mark stale, resume; the position must survive the swap.
+    await page.click('#play');
+    const pos = await page.evaluate(() => { window.__mozart.player.stale = true; return window.__mozart.player.pausedAtSample; });
+    assert.ok(pos > 0);
+    await page.click('#play');
+    await page.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
+    const now = await page.evaluate(() => window.__mozart.player.positionSample());
+    assert.ok(now >= pos && now < pos + before, `resumed at ${now} from ${pos}`);
+    assert.equal(await page.locator('#status.is-error').count(), 0);
+    // A closed context is replaced too.
+    await page.click('#stop');
+    await page.evaluate(() => window.__mozart.player.ctx.close());
+    await page.click('#play');
+    await page.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
+    await page.click('#stop');
+  });
+
   await step('keyboard: lock and reroll buttons are reachable and labelled; Space toggles play', async () => {
     const lock = cards().nth(0).locator('.lock');
     await lock.focus(); await page.keyboard.press('Enter');
