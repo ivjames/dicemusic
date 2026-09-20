@@ -79,11 +79,14 @@ export class Player {
     const old = this.ctx;
     if (this.state === 'playing') { this.pausedAtSample = this.positionSample(); this.state = 'paused'; }
     this.stopSources();
-    const oldRate = old ? old.sampleRate : 0;
     this.createContext();
     if (old) { try { await old.close(); } catch { /* already closed */ } }
-    if (this.floatBuffers && this.ctx.sampleRate === oldRate) {
+    // Reinstall only if the rendered audio is at this context's rate. Compare with the rate the
+    // buffers were rendered at, not the previous context's: after a rate-changing swap that has
+    // not been reloaded yet, a second swap back to the original rate must not clear needsReload.
+    if (this.floatBuffers && this.ctx.sampleRate === this.floatRate) {
       this.installBuffers(this.plan, this.floatBuffers, this.keyOf);
+      this.needsReload = false;
     } else if (this.floatBuffers) {
       this.needsReload = true;      // different rate: the app must re-render at the new rate and load again
     }

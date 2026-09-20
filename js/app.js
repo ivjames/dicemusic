@@ -204,9 +204,11 @@ async function onPlay() {
     if (player.state === 'playing') { player.pause(); return; }
     if (player.state === 'paused') {
       await player.ensureContext();
+      if (player.state !== 'paused') return;   // Stop or an edit landed while the context woke
       if (player.needsReload) {       // the context was swapped for one at another sample rate
         const from = player.pausedAtSample; const oldRate = player.floatRate;
         await ensureRendered();
+        if (player.state !== 'paused') return;
         player.load(state.plan, state.rendered, (s) => bufferKey(s.measureId, s.ending));
         player.pausedAtSample = Math.round(from * player.sampleRate / oldRate); player.state = 'paused';
       }
