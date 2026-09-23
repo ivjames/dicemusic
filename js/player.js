@@ -1,7 +1,7 @@
 // Web Audio playback of a plan of rendered measure buffers.
-// Bars are scheduled up front on one clock, each at exactly k × barSamples, so there are no gaps.
+// Steps are scheduled up front on one clock, each at its own start sample, so there are no gaps.
 // Pause stops the scheduled sources and remembers the position; resume schedules from there.
-import { barSamples, measureSamples, planSamples } from './synth.js?v=dev';
+import { stepStart, planSamples } from './synth.js?v=dev';
 
 const AC = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
 
@@ -85,7 +85,7 @@ export class Player {
     // buffers were rendered at, not the previous context's: after a rate-changing swap that has
     // not been reloaded yet, a second swap back to the original rate must not clear needsReload.
     if (this.floatBuffers && this.ctx.sampleRate === this.floatRate) {
-      this.installBuffers(this.plan, this.floatBuffers, this.keyOf);
+      this.installBuffers(this.plan, this.floatBuffers);
       this.needsReload = false;
     } else if (this.floatBuffers) {
       this.needsReload = true;      // different rate: the app must re-render at the new rate and load again
@@ -119,33 +119,31 @@ export class Player {
     }
   }
 
-  /** Install a plan and its rendered buffers (Float32Arrays keyed by bufferKey). */
-  load(plan, floatBuffers, keyOf) {
+  /** Install a plan (steps with key/at/dur) and its rendered buffers (Float32Arrays keyed by step.key). */
+  load(plan, floatBuffers) {
     this.stop();
-    this.installBuffers(plan, floatBuffers, keyOf);
+    this.installBuffers(plan, floatBuffers);
     this.needsReload = false;
   }
 
-  installBuffers(plan, floatBuffers, keyOf) {
+  installBuffers(plan, floatBuffers) {
     this.plan = plan;
     this.floatBuffers = floatBuffers;
     this.floatRate = this.sampleRate;
-    this.keyOf = keyOf;
     this.buffers = new Map();
     const sr = this.sampleRate;
     for (const step of plan) {
-      const key = keyOf(step);
-      if (this.buffers.has(key)) continue;
-      const data = floatBuffers.get(key);
-      if (!data) throw new Error(`missing buffer ${key}`);
+      if (this.buffers.has(step.key)) continue;
+      const data = floatBuffers.get(step.key);
+      if (!data) throw new Error(`missing buffer ${step.key}`);
       const ab = this.ctx.createBuffer(1, data.length, sr);
       ab.getChannelData(0).set(data);
-      this.buffers.set(key, ab);
+      this.buffers.set(step.key, ab);
     }
   }
 
-  get totalSamples() { return this.plan.length ? planSamples(this.plan, this.sampleRate) : 0; }
-  get endSample() { return this.plan.length ? (this.plan.length - 1) * barSamples(this.sampleRate) + barSamples(this.sampleRate) : 0; }
+  get totalSamples() { return this.plan.length ? planSamples(this.plan, this.floatBuffers, this.sampleRate) : 0; }
+  get endSample() { const last = this.plan[this.plan.length - 1]; return last ? Math.round((last.at + last.dur) * this.sampleRate) : 0; }
 
   /** Current position in samples from the start of the plan. */
   positionSample() {
@@ -156,11 +154,15 @@ export class Player {
     return 0;
   }
 
-  /** Index of the bar under the playhead, or -1. */
+  /** Index of the step under the playhead, or -1. */
   currentIndex() {
     if (this.state === 'idle' || !this.plan.length) return -1;
-    const i = Math.floor(this.positionSample() / barSamples(this.sampleRate));
-    return i < this.plan.length ? i : -1;
+    const pos = this.positionSample();
+    const sr = this.sampleRate;
+    let idx = -1;
+    for (let k = 0; k < this.plan.length; k++) if (stepStart(this.plan[k], sr) <= pos) idx = k;
+    if (idx >= 0 && pos >= Math.round((this.plan[idx].at + this.plan[idx].dur) * sr)) return -1;
+    return idx;
   }
 
   play() {
@@ -172,25 +174,26 @@ export class Player {
 
   scheduleFrom(fromSample) {
     const sr = this.sampleRate;
-    const stride = barSamples(sr);
     const gen = ++this.generation;
     const t0 = this.ctx.currentTime + 0.08;
     this.startedAt = t0 - fromSample / sr;
     this.scheduledFrom = fromSample;
     this.sources = [];
-    const firstBar = Math.min(this.plan.length - 1, Math.floor(fromSample / stride));
-    for (let k = firstBar; k < this.plan.length; k++) {
-      const key = this.keyOf(this.plan[k]);
+    // Every step whose buffer still has something to play from this position.
+    for (let k = 0; k < this.plan.length; k++) {
+      const step = this.plan[k];
+      const buf = this.buffers.get(step.key);
+      const start = stepStart(step, sr);
+      if (start + buf.length <= fromSample) continue;
       const src = this.ctx.createBufferSource();
-      src.buffer = this.buffers.get(key);
+      src.buffer = buf;
       src.connect(this.ctx.destination);
-      const barStart = k * stride;
-      if (barStart >= fromSample) src.start(this.startedAt + barStart / sr);
-      else src.start(t0, (fromSample - barStart) / sr);
+      if (start >= fromSample) src.start(this.startedAt + start / sr);
+      else src.start(t0, (fromSample - start) / sr);
       this.sources.push(src);
     }
     const last = this.sources[this.sources.length - 1];
-    last.onended = () => { if (gen === this.generation && this.state === 'playing') this.finish(); };
+    if (last) last.onended = () => { if (gen === this.generation && this.state === 'playing') this.finish(); };
     this.state = 'playing';
     this.emit('play');
   }
@@ -228,4 +231,3 @@ export class Player {
   get finished() { return this.state === 'playing' && this.positionSample() >= this.totalSamples; }
 }
 
-export { measureSamples };

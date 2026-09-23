@@ -29,6 +29,11 @@ server {
         include snippets/lab980-security-headers.conf;
         add_header Cache-Control "no-cache" always;
     }
+    # The second page's entry document, for the same reason (its module URLs carry the build).
+    location = /chorale/index.html {
+        include snippets/lab980-security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+    }
 
     location / {
         try_files $uri $uri/ =404;

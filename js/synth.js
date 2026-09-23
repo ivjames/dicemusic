@@ -132,40 +132,106 @@ export function bufferKey(measureId, ending) {
  * ending that leads on to bar 9. With repeats: ||: 1–8 :|| 9–16, as the print asks and as
  * the Humdrum edition expands it ([A,A1,A,A2,B]): the first half twice, bar 8 taking its
  * first ending the first time round, then the second half once.
- * `measures` is the 16 measure numbers. Returns [{ bar, measureId, ending }].
+ * `measures` is the 16 measure numbers. Returns steps [{ bar, measureId, ending, key, at, dur }]
+ * where `at` and `dur` are seconds and `key` names the rendered buffer.
  */
 export function playbackPlan(measures, repeats = false) {
   if (!Array.isArray(measures) || measures.length !== 16) throw new RangeError('need 16 measures');
-  const step = (bar, ending) => ({ bar, measureId: measures[bar], ending });
-  const plan = [];
+  const order = [];
   if (!repeats) {
-    for (let b = 0; b < 16; b++) plan.push(step(b, 'second'));
-    return plan;
+    for (let b = 0; b < 16; b++) order.push([b, 'second']);
+  } else {
+    for (let b = 0; b < 8; b++) order.push([b, 'first']);
+    for (let b = 0; b < 8; b++) order.push([b, 'second']);
+    for (let b = 8; b < 16; b++) order.push([b, 'second']);
   }
-  for (let b = 0; b < 8; b++) plan.push(step(b, 'first'));
-  for (let b = 0; b < 8; b++) plan.push(step(b, 'second'));
-  for (let b = 8; b < 16; b++) plan.push(step(b, 'second'));
-  return plan;
+  return order.map(([bar, ending], k) => ({
+    bar, measureId: measures[bar], ending, key: bufferKey(measures[bar], ending), at: k * BAR_SECONDS, dur: BAR_SECONDS,
+  }));
 }
 
-/** Total length in samples of a plan (bars back to back, plus the final tail). */
-export function planSamples(plan, sampleRate) {
-  return (plan.length - 1) * barSamples(sampleRate) + measureSamples(sampleRate);
+/** Sample at which a step starts. */
+export function stepStart(step, sampleRate) {
+  return Math.round(step.at * sampleRate);
+}
+
+/** Total length in samples of a plan once its buffers are known (the last tail included). */
+export function planSamples(plan, buffers, sampleRate) {
+  let n = 0;
+  for (const s of plan) {
+    const buf = buffers.get(s.key);
+    if (!buf) throw new Error(`step ${s.key} not rendered`);
+    n = Math.max(n, stepStart(s, sampleRate) + buf.length);
+  }
+  return n;
 }
 
 /**
- * Mix a plan into one buffer: bar k starts at k × barSamples and its tail overlaps
- * the next bar, exactly as the scheduled playback overlaps them. `buffers` maps
- * bufferKey → Float32Array. This is what the WAV export writes.
+ * Mix a plan into one buffer: each step at its own start sample, tails overlapping the next
+ * step exactly as the scheduled playback overlaps them. `buffers` maps step.key → Float32Array.
+ * This is what the WAV export writes.
  */
 export function mixdown(plan, buffers, sampleRate) {
-  const out = new Float32Array(planSamples(plan, sampleRate));
-  const stride = barSamples(sampleRate);
-  plan.forEach((s, k) => {
-    const buf = buffers.get(bufferKey(s.measureId, s.ending));
-    if (!buf) throw new Error(`measure ${s.measureId} not rendered`);
-    const off = k * stride;
+  const out = new Float32Array(planSamples(plan, buffers, sampleRate));
+  for (const s of plan) {
+    const buf = buffers.get(s.key);
+    const off = stepStart(s, sampleRate);
     for (let i = 0; i < buf.length; i++) out[off + i] += buf[i];
-  });
+  }
+  return out;
+}
+
+// ---------- a second instrument: sustained voices for the chorale ----------
+
+/** Add one sustained, lightly chorused voice note into `out` (in place). */
+function addSustained(out, { t, d, midi, vel }, sampleRate) {
+  const f0 = freqOf(midi);
+  const start = Math.round(t * sampleRate);
+  const holdSamples = Math.max(1, Math.round(d * sampleRate));
+  const attackSamples = Math.round(0.045 * sampleRate);
+  const releaseSamples = Math.round(0.16 * sampleRate);
+  const n = Math.min(out.length - start, holdSamples + releaseSamples);
+  if (n <= 0) return;
+  const nyq = sampleRate * 0.45;
+  const P = [];
+  // Two slightly detuned copies of each partial give a choir-like breadth.
+  for (const cents of [-4, 4]) {
+    const f1 = f0 * 2 ** (cents / 1200);
+    for (let k = 1; k <= 7; k++) {
+      const f = f1 * k;
+      if (f >= nyq) break;
+      const lowpass = 1 / (1 + (f / 1800) ** 2);
+      const amp = (k === 1 ? 1 : 0.6 / k ** 1.3) * lowpass;
+      if (amp < 1e-4) continue;
+      const w = (2 * Math.PI * f) / sampleRate;
+      P.push({ c: Math.cos(w), s: Math.sin(w), x: 1, y: 0, a: amp * 0.5 });
+    }
+  }
+  const scale = vel * 0.27;
+  const relK = Math.exp(-1 / (0.05 * sampleRate));
+  let rel = 1;
+  for (let i = 0; i < n; i++) {
+    let v = 0;
+    for (const p of P) {
+      const nx = p.x * p.c - p.y * p.s;
+      p.y = p.x * p.s + p.y * p.c;
+      p.x = nx;
+      v += p.y * p.a;
+    }
+    if (i < attackSamples) v *= 0.5 - 0.5 * Math.cos(Math.PI * i / attackSamples);
+    if (i >= holdSamples) { rel *= relK; v *= rel; }
+    out[start + i] += v * scale;
+  }
+}
+
+export const CHORALE_TAIL_SECONDS = 0.3;
+
+/**
+ * Render a chord for the sustained instrument: `notes` are [{ midi, vel }] all starting at 0
+ * and holding for `seconds`; the buffer is `seconds` plus a short tail for the release.
+ */
+export function renderChord(notes, seconds, sampleRate) {
+  const out = new Float32Array(Math.round((seconds + CHORALE_TAIL_SECONDS) * sampleRate));
+  for (const nt of notes) addSustained(out, { t: 0, d: Math.max(0.05, seconds - 0.07), midi: nt.midi, vel: nt.vel }, sampleRate);
   return out;
 }

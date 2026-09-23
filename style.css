@@ -92,7 +92,7 @@ main { max-width: 60rem; margin: 0 auto; }
 .bar.is-locked { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
 .bar.is-playing { background: var(--playing); border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
 .bar-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.bar-num { font-family: var(--serif); font-size: 1.05rem; }
+.bar-num { font-family: var(--serif); font-size: 1.05rem; white-space: nowrap; }
 .lock { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; margin: -6px -6px -6px 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
 .lock:hover { background: var(--paper); color: var(--ink); }
 .lock svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; }
@@ -133,3 +133,9 @@ main { max-width: 60rem; margin: 0 auto; }
 .score .abcjs-staff.is-current, .score .abcjs-bar.is-current { fill: var(--ink); stroke: var(--ink); }
 .score-fallback { margin: 0; color: var(--muted); }
 .score-note { margin: 10px 4px 0; color: var(--muted); font-size: .9rem; }
+
+.sibling { margin: 10px auto 0; color: var(--muted); font-size: .95rem; }
+.select { font: inherit; min-height: 40px; padding: 0 8px; border: 1.5px solid var(--ink-2); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.bar-text .roman { font-family: var(--serif); font-size: 1.15rem; }
+.bar-text .roman sup, .bar-text .roman sub { font-size: .65em; }
+.bar-text .fn { font-size: .8rem; color: var(--muted); }

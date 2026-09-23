@@ -31,8 +31,18 @@ WAV, and the exact composition shared by URL.
   both endings of bar 8), engraved in the page by the vendored `js/vendor/abcjs-basic-min.js`
   (abcjs 6.7.1, MIT). The current measure is highlighted during playback and the score can be
   saved as SVG.
-- `js/app.js` — UI wiring. Any edit to the composition during playback stops it and resets
-  the playhead first. `window.__mozart` is a hook for the browser tests.
+- `js/ui.js` — the page controller shared by both games: cards, transport, share, WAV,
+  engraving, highlight and the Web Audio lifecycle. Any edit to the composition during
+  playback stops it and resets the playhead first. `window.__mozart` is a hook for the tests.
+- `js/app.js` — the minuet as a game config on that controller.
+- `chorale/index.html`, `js/chorale-app.js`, `js/chorale.js`, `js/chorale-harmony.js`,
+  `js/chorale-voicing.js` — **Chorale Dice**, a companion page at `/chorale/`: dice choose a
+  harmony at each of sixteen positions from a table built so every roll gives two phrases
+  ending on a half cadence and a perfect authentic cadence; a dynamic-programming voice-leading
+  engine then writes SATB (ranges, spacing, doublings, no parallel or hidden fifths and
+  octaves, resolving leading tones, sevenths and chromatic tones); the four voices are
+  synthesised as sustained tones and engraved on two staves. Seven major keys. Original
+  music, not a historical game, and the page says so.
 
 ## Where the music comes from
 

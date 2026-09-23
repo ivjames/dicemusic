@@ -202,16 +202,48 @@ cmd_deploy() {
   # re-stamps it. Anchor the pattern to the declaration line: an unanchored one
   # also hits any update-checker regex further down the file and corrupts it.
   if grep -q "^  const BUILD = '" index.html 2>/dev/null; then
-    sed -i "s/^  const BUILD = '[^']*';/  const BUILD = '$after';/" index.html
-    log "stamped build $after into index.html"
+    sed -i "s/^  const BUILD = '[^']*';/  const BUILD = '$after';/" index.html chorale/index.html
+    log "stamped build $after into index.html and chorale/index.html"
   fi
   # And onto every ?v= asset URL (stylesheet, import map, module script, engraver), so
   # browsers that cache scripts heuristically fetch the ones this commit ships.
   if grep -q '?v=' index.html 2>/dev/null; then
-    sed -i "s/?v=[A-Za-z0-9]*/?v=$after/g" index.html js/*.js
-    log "stamped build $after onto ?v= asset URLs (index.html and js/*.js)"
+    sed -i "s/?v=[A-Za-z0-9]*/?v=$after/g" index.html chorale/index.html js/*.js
+    log "stamped build $after onto ?v= asset URLs (index.html, chorale/index.html, js/*.js)"
   fi
+  ensure_chorale_vhost
   log "Done. (Static files serve straight from disk — no reload needed.)"
+}
+
+# The vhost was installed once by `setup` and certbot owns it since, so a template change
+# does not reach the box on its own. Insert the chorale entry page's no-cache location into
+# the installed vhost if it is missing, test, reload, and roll back if nginx objects.
+ensure_chorale_vhost() {
+  local conf="/etc/nginx/sites-available/$FQDN"
+  [ -w "$conf" ] || return 0
+  grep -q 'location = /chorale/index.html' "$conf" && return 0
+  grep -q 'location = /index.html' "$conf" || { warn "vhost has no 'location = /index.html' block; add the /chorale/index.html no-cache location by hand (see deploy/nginx.conf.template)."; return 0; }
+  local backup; backup="$(mktemp)"
+  cp "$conf" "$backup"
+  # Append the chorale block right after the closing brace of the /index.html block.
+  awk '
+    /location = \/index\.html/ { inblock = 1 }
+    { print }
+    inblock && /^[[:space:]]*}/ {
+      inblock = 0
+      print "    location = /chorale/index.html {"
+      print "        include snippets/lab980-security-headers.conf;"
+      print "        add_header Cache-Control \"no-cache\" always;"
+      print "    }"
+    }
+  ' "$backup" > "$conf"
+  if nginx -t 2>/dev/null && systemctl reload nginx; then
+    log "vhost: added the /chorale/index.html no-cache location and reloaded nginx"
+  else
+    cp "$backup" "$conf"
+    warn "vhost: nginx rejected the /chorale/index.html location; restored the previous vhost. Add it by hand (see deploy/nginx.conf.template)."
+  fi
+  rm -f "$backup"
 }
 
 cmd_status() {

@@ -48,6 +48,9 @@ as a phantom second build.)
 
 ## This site
 
+- Two pages: the minuet at `/` and **Chorale Dice** at `/chorale/`, both built on
+  `js/ui.js`; a game is a config object (see `js/app.js` and `js/chorale.js`).
+
 - The app is a set of ES modules under `js/` loaded by `index.html`; the score
   data, the sources it was taken from, the tests and the known limits are in
   `README.md`. The one third-party file is `js/vendor/abcjs-basic-min.js`

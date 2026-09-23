@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chorale Dice</title>
+<meta name="description" content="Roll two dice sixteen times and hear a four-part chorale: the dice choose the harmony, the page writes soprano, alto, tenor and bass by classical voice-leading rules.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="../style.css?v=dev">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect x='1' y='1' width='18' height='18' rx='4' fill='%23f4efe6' stroke='%23231f1a'/%3E%3Ccircle cx='6' cy='6' r='1.8' fill='%23231f1a'/%3E%3Ccircle cx='14' cy='6' r='1.8' fill='%23231f1a'/%3E%3Ccircle cx='6' cy='14' r='1.8' fill='%23231f1a'/%3E%3Ccircle cx='14' cy='14' r='1.8' fill='%23231f1a'/%3E%3C/svg%3E">
+</head>
+<body>
+<a class="skip" href="#controls">Skip to controls</a>
+<header class="masthead">
+  <p class="kicker">Four voices · sixteen throws</p>
+  <h1>Chorale Dice</h1>
+  <p class="lede">A companion to the <a href="../">Musical Dice Game</a>. Two dice for each of sixteen chords choose the harmony from a table; the page then writes soprano, alto, tenor and bass by the classical rules of voice leading, and sings them.</p>
+</header>
+
+<main>
+  <section class="controls" id="controls" aria-label="Composition controls">
+    <div class="row row-roll">
+      <button type="button" id="roll" class="btn btn-primary">Roll &amp; Compose</button>
+      <button type="button" id="roll-unlocked" class="btn" disabled>Roll Unlocked</button>
+    </div>
+    <div class="row row-transport" role="group" aria-label="Playback">
+      <button type="button" id="play" class="btn btn-play" aria-label="Play the chorale" disabled>Play</button>
+      <button type="button" id="stop" class="btn" aria-label="Stop playback" disabled>Stop</button>
+      <label class="check">Key
+        <select id="key" class="select" aria-label="Key">
+          <option value="C">C major</option><option value="G">G major</option><option value="D">D major</option><option value="A">A major</option>
+          <option value="F">F major</option><option value="Bb">B♭ major</option><option value="Eb">E♭ major</option>
+        </select>
+      </label>
+    </div>
+    <div class="row row-export">
+      <button type="button" id="download" class="btn" disabled>Download WAV</button>
+      <button type="button" id="share" class="btn" disabled>Copy link</button>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <p id="position" class="position" aria-live="polite"></p>
+    <input id="share-url" class="share-url" type="text" readonly aria-label="Shareable link" hidden>
+  </section>
+
+  <section aria-labelledby="bars-heading">
+    <h2 id="bars-heading" class="visually-hidden">The sixteen chords</h2>
+    <ol id="bars" class="bars" aria-label="The sixteen chords of the chorale"></ol>
+    <p id="summary" class="summary" hidden></p>
+  </section>
+
+  <section class="score-section" id="score-section" aria-labelledby="score-heading" hidden>
+    <div class="score-head">
+      <h2 id="score-heading">The score</h2>
+      <button type="button" id="save-score" class="btn btn-small" disabled>Save score (SVG)</button>
+    </div>
+    <div id="score" class="score" role="img" aria-label="Score of the chorale" data-engraver="../js/vendor/abcjs-basic-min.js?v=dev"></div>
+    <p class="score-note">Soprano and alto on the upper staff, tenor and bass on the lower; the fermatas mark the half cadence and the close.</p>
+  </section>
+
+  <section class="prose" id="how" aria-labelledby="how-heading">
+    <h2 id="how-heading">How it works</h2>
+    <p>This is not a historical game. The eighteenth-century dice games, the one attributed to Mozart among them, worked with finished bars of keyboard music; nobody published one for four voices. This page borrows the idea and applies it a level down: the dice choose harmonies, and the voices are written by rule.</p>
+    <p>There is a table of sixteen columns, one per chord, and eleven rows, one per dice total. Each column keeps to one harmonic function, so any throw produces two four-bar phrases: the first opens on the tonic and closes on the dominant at position 8, the second closes with a dominant and a tonic at positions 15 and 16. Those cadence columns are fixed; in the others the likely totals (6, 7, 8) carry the plainest chords and the rare ones (2 and 12) the colour, a borrowed minor subdominant or a secondary dominant.</p>
+    <p>Given the sixteen chords, the four parts are chosen among every voicing that keeps each voice in its range, keeps the chord complete, doubles sensibly and never doubles the leading tone. The cheapest path through them is found where the cost between chords encodes the textbook: no parallel fifths or octaves, no hidden ones in the outer voices, the leading tone and every seventh resolve by step, raised notes rise and lowered notes fall, voices move as little as they can and never overlap. The same chords in the same key always give the same voices, so a link reproduces the chorale exactly.</p>
+    <p>The sound is four sustained voices synthesised in the browser; the score is engraved from the same notes.</p>
+    <h2>Sources</h2>
+    <ul class="sources">
+      <li>The idea: the <a href="../">Musikalisches Würfelspiel</a> commonly attributed to Mozart, and its <a href="https://en.wikipedia.org/wiki/Musikalisches_W%C3%BCrfelspiel">relatives</a>.</li>
+      <li>Notation: engraved in the browser by <a href="https://github.com/paulrosen/abcjs">abcjs</a> (MIT licence, Paul Rosen and Gregory Dyke).</li>
+    </ul>
+  </section>
+</main>
+<footer class="foot"><p>Keyboard: Tab moves between controls; Space plays or pauses when no button is focused. Sound starts only after you press Play. Build <span id="build">dev</span>.</p></footer>
+<script>
+  const BUILD = 'dev';
+</script>
+<script type="module" src="../js/chorale-app.js?v=dev"></script>
+<script>document.getElementById('build').textContent = BUILD;</script>
+</body>
+</html>

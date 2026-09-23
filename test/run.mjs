@@ -7,6 +7,9 @@ import { MEASURES, UNITS_PER_BAR } from '../js/score.js';
 import { renderMeasure, hasEndings, playbackPlan, mixdown, bufferKey, barSamples, measureSamples, realize, notesOf, BAR_SECONDS } from '../js/synth.js';
 import { encodeWav, decodeWav } from '../js/wav.js';
 import { voiceToAbc, minuetToAbc, scoreMeasureIndex, pitchName } from '../js/notation.js';
+import { CHORALE_TABLE, CHORDS, KEY_NAMES, chordFor, keyAccidental, degreeLetter } from '../js/chorale-harmony.js';
+import { voiceLead, violations } from '../js/chorale-voicing.js';
+import { compose as composeChorale, plan as choralePlan, render as renderChoraleStep, choraleToAbc, scoreIndex as choraleScoreIndex, CHORD_SECONDS, FERMATA_FACTOR, BREATH_SECONDS } from '../js/chorale.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -85,18 +88,18 @@ test('rollAll gives 16 pairs; rollUnlocked keeps locked bars; rerollBar touches 
 });
 
 // ---------- share links ----------
-test('share link round-trips dice, locks and the repeat flag', () => {
+test('share link round-trips dice, locks and a game setting', () => {
   const pairs = rollAll();
   const locks = pairs.map((_, i) => i % 3 === 0);
-  const qs = encodeState({ pairs, locks, repeats: true });
+  const qs = encodeState({ pairs, locks, extra: { r: '1' } });
   const back = decodeState('?' + qs);
-  assert.deepEqual(back.pairs, pairs); assert.deepEqual(back.locks, locks); assert.equal(back.repeats, true);
+  assert.deepEqual(back.pairs, pairs); assert.deepEqual(back.locks, locks); assert.equal(back.params.get('r'), '1');
   const plain = decodeState('?' + encodeState({ pairs }));
-  assert.deepEqual(plain.locks, new Array(BARS).fill(false)); assert.equal(plain.repeats, false);
+  assert.deepEqual(plain.locks, new Array(BARS).fill(false)); assert.equal(plain.params.get('r'), null);
 });
 
 test('malformed links are rejected without throwing', () => {
-  for (const bad of ['?d=123', '?d=' + '7'.repeat(32), '?d=' + '1'.repeat(31) + 'x', '?d=' + '3'.repeat(33), '?d=' + '2'.repeat(32) + '&l=zz', '?d=' + '2'.repeat(32) + '&l=12345', '?d=' + '2'.repeat(32) + '&r=yes', '?d=%E0%A4%A']) {
+  for (const bad of ['?d=123', '?d=' + '7'.repeat(32), '?d=' + '1'.repeat(31) + 'x', '?d=' + '3'.repeat(33), '?d=' + '2'.repeat(32) + '&l=zz', '?d=' + '2'.repeat(32) + '&l=12345', '?d=%E0%A4%A']) {
     const r = decodeState(bad);
     assert.ok(r.error, `expected error for ${bad}`);
   }
@@ -138,6 +141,7 @@ test('playback plan: 16 bars straight through with the second ending; 24 bars wi
   const p = playbackPlan(ids, false);
   assert.deepEqual(p.map((s) => s.bar), [...Array(16).keys()]);
   assert.ok(p.every((s) => s.ending === 'second'));
+  assert.ok(p.every((s, k) => s.key === bufferKey(s.measureId, s.ending) && Math.abs(s.at - k * BAR_SECONDS) < 1e-9 && s.dur === BAR_SECONDS));
   const r = playbackPlan(ids, true);
   assert.equal(r.length, 24);
   assert.deepEqual(r.map((s) => s.bar), [...Array(8).keys(), ...Array(8).keys(), ...[...Array(8).keys()].map((b) => b + 8)]);
@@ -148,15 +152,15 @@ test('mixdown lays the buffers exactly one bar apart, tails overlapping; WAV rou
   const ids = [32, 157, 163, 103, 154, 129, 118, 100, 120, 88, 19, 29, 51, 58, 1, 93];
   const plan = playbackPlan(ids, false);
   const mix = mixdown(plan, buffers, SR);
-  const stride = barSamples(SR);
-  assert.equal(mix.length, 15 * stride + measureSamples(SR));
+  const start = (k) => Math.round(k * BAR_SECONDS * SR);
+  assert.equal(mix.length, start(15) + measureSamples(SR));
   // sample inside bar 5 equals the sum of bar 5's buffer and bar 4's tail
   const k = 4, i = 100;
-  const expected = buffers.get('154')[i] + buffers.get('103')[stride + i];
-  assert.ok(Math.abs(mix[k * stride + i] - expected) < 1e-6);
+  const expected = buffers.get('154')[i] + buffers.get('103')[start(4) - start(3) + i];
+  assert.ok(Math.abs(mix[start(k) + i] - expected) < 1e-6);
   const dec = decodeWav(encodeWav(mix, SR));
   assert.equal(dec.sampleRate, SR); assert.equal(dec.channels, 1); assert.equal(dec.bits, 16); assert.equal(dec.samples.length, mix.length);
-  assert.ok(Math.abs(dec.samples[k * stride + i] / 32767 - mix[k * stride + i]) < 1e-4);
+  assert.ok(Math.abs(dec.samples[start(k) + i] / 32767 - mix[start(k) + i]) < 1e-4);
   const seconds = mix.length / SR;
   assert.ok(seconds > 24 && seconds < 26, `length ${seconds}s`);
 });
@@ -211,11 +215,120 @@ test('every module import and asset URL carries the ?v= stamp the deploy rewrite
   assert.ok(!html.includes('importmap'), 'no import map: the scheme must not depend on one');
   assert.ok(/src="js\/app\.js\?v=dev"/.test(html) && /href="style\.css\?v=dev"/.test(html) && /abcjs-basic-min\.js\?v=dev/.test(html));
   assert.ok(/^  const BUILD = 'dev';$/m.test(html), 'BUILD constant at the indentation the deploy stamp expects');
+  const chorale = fs.readFileSync(new URL('../chorale/index.html', import.meta.url), 'utf8');
+  assert.ok(/src="\.\.\/js\/chorale-app\.js\?v=dev"/.test(chorale) && /href="\.\.\/style\.css\?v=dev"/.test(chorale) && /abcjs-basic-min\.js\?v=dev/.test(chorale));
+  assert.ok(/^  const BUILD = 'dev';$/m.test(chorale));
+  const deploy = fs.readFileSync(new URL('../bin/dicemusic', import.meta.url), 'utf8');
+  assert.ok(deploy.includes('index.html chorale/index.html js/*.js'), 'deploy stamps the chorale page too');
+  assert.ok(deploy.includes('ensure_chorale_vhost') && deploy.includes('location = /chorale/index.html'), 'deploy brings the installed vhost up to date');
+  const vhost = fs.readFileSync(new URL('../deploy/nginx.conf.template', import.meta.url), 'utf8');
+  assert.ok(/location = \/chorale\/index\.html \{[^}]*no-cache/.test(vhost), 'template serves the chorale entry page no-cache');
   const dir = new URL('../js/', import.meta.url);
   for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.js'))) {
     const src = fs.readFileSync(new URL(f, dir), 'utf8');
     for (const m of src.matchAll(/from\s+'(\.\/[^']+)'/g)) assert.ok(m[1].endsWith('.js?v=dev'), `${f}: ${m[1]}`);
   }
+});
+
+// ---------- chorale ----------
+const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x80000000; };
+const rollPairsWith = (rng) => Array.from({ length: BARS }, () => [1 + Math.floor(rng() * 6), 1 + Math.floor(rng() * 6)]);
+
+test('chorale table: 16 columns of 11 known chords; cadences fixed; each column one function', () => {
+  const fnOf = (sym) => CHORDS[sym].fn;
+  for (let p = 1; p <= 16; p++) {
+    const col = CHORALE_TABLE[p];
+    assert.equal(col.length, 11, `column ${p}`);
+    for (const sym of col) assert.ok(CHORDS[sym], `${p}: ${sym}`);
+  }
+  assert.ok(CHORALE_TABLE[8].every((s) => s === 'V'));
+  assert.ok(CHORALE_TABLE[16].every((s) => s === 'I'));
+  assert.ok(CHORALE_TABLE[15].every((s) => s === 'V' || s === 'V7'));
+  for (const p of [1, 3, 5, 9, 11, 13]) assert.ok(CHORALE_TABLE[p].every((s) => ['tonic', 'tonic substitute'].includes(fnOf(s))), `column ${p} is tonic-function`);
+  for (const p of [6, 14]) assert.ok(CHORALE_TABLE[p].every((s) => fnOf(s).includes('predominant')), `column ${p} is predominant`);
+  assert.equal(chordFor(0, 7), 'I'); assert.equal(chordFor(14, 7), 'V7'); assert.equal(chordFor(6, 2), 'V7ofV');
+  // chords with a tendency tone sit only where the next column is certain to hold its resolution
+  const hasDeg = (sym, deg) => CHORDS[sym].tones.some((t) => t[0] === deg && t[1] === 0);
+  for (let p = 1; p <= 15; p++) for (const sym of CHORALE_TABLE[p]) {
+    const c = CHORDS[sym];
+    const next = CHORALE_TABLE[p + 1];
+    if (c.tones.length === 4) { const sev = c.tones[3][0]; const down = sev === 1 ? 7 : sev - 1; assert.ok(next.every((n) => hasDeg(n, down)), `${p}: ${sym} seventh must be able to fall`); }
+    for (const [deg, alt] of c.tones) if (alt !== 0) assert.ok(next.every((n) => hasDeg(n, 5)), `${p}: ${sym} chromatic tone must resolve to 5`);
+    if (['V', 'V6', 'V7', 'V65', 'V43', 'viio6'].includes(sym)) assert.ok(next.every((n) => hasDeg(n, 1)), `${p}: ${sym} leading tone must be able to rise`);
+    if (['V6', 'V65'].includes(sym)) assert.ok(next.every((n) => CHORDS[n].bass === 1 || n === 'vi'), `${p}: ${sym} bass leading tone needs a root-position tonic (or vi) next`);
+  }
+  assert.throws(() => chordFor(16, 7), RangeError); assert.throws(() => chordFor(0, 13), RangeError);
+});
+
+test('chorale voicing: 700 random rolls in seven keys break no rule and are deterministic', () => {
+  const rng = seeded(4242);
+  let worstCost = 0;
+  for (const key of KEY_NAMES) {
+    for (let n = 0; n < 100; n++) {
+      const syms = Array.from({ length: 16 }, (_, p) => chordFor(p, 2 + Math.floor(rng() * 6) + Math.floor(rng() * 6)));
+      const a = voiceLead(syms, key);
+      const v = violations(a.voicings, a.chords, key);
+      assert.deepEqual(v, [], `${key} ${syms.join(' ')}`);
+      const b = voiceLead(syms, key);
+      assert.deepEqual(b.voicings, a.voicings, 'deterministic');
+      worstCost = Math.max(worstCost, a.cost);
+      // the leading tone in the soprano at the final cadence rises to the tonic
+      const s15 = a.voicings[14][3], s16 = a.voicings[15][3];
+      if ((s15 - (a.chords[15].root.pc)) % 12 === 11) assert.equal(s16 - s15, 1);
+      // every seventh falls by step (the checker above enforces it too; this is the direct statement)
+      a.chords.forEach((c, k) => { if (c.seventh && k < 15) for (let i = 0; i < 4; i++) if (a.voicings[k][i] % 12 === c.seventh.pc) assert.ok([-1, -2].includes(a.voicings[k + 1][i] - a.voicings[k][i]), `${key} ${syms.join(' ')} seventh at ${k}`); });
+    }
+  }
+  assert.ok(worstCost < 400, `worst path cost ${worstCost}`);
+});
+
+test('chorale: compose, plan timing with fermatas and breath, sustained render level', () => {
+  const rng = seeded(7);
+  let peak = 0;
+  for (let n = 0; n < 12; n++) {
+    const key = KEY_NAMES[n % KEY_NAMES.length];
+    const bars = composeChorale(rollPairsWith(rng), { key });
+    assert.equal(bars.length, 16);
+    const steps = choralePlan(bars);
+    assert.equal(steps.length, 16);
+    assert.equal(steps[0].at, 0);
+    assert.ok(Math.abs(steps[7].dur - CHORD_SECONDS * FERMATA_FACTOR) < 1e-9 && Math.abs(steps[15].dur - CHORD_SECONDS * FERMATA_FACTOR) < 1e-9);
+    assert.ok(Math.abs(steps[8].at - (steps[7].at + steps[7].dur + BREATH_SECONDS)) < 1e-9, 'a breath after the half cadence');
+    for (let k = 1; k < 16; k++) if (k !== 8) assert.ok(Math.abs(steps[k].at - (steps[k - 1].at + steps[k - 1].dur)) < 1e-9);
+    assert.equal(new Set(steps.map((s) => s.key)).size, 16);
+    for (const k of [0, 7, 15]) {
+      const buf = renderChoraleStep(steps[k], 44100);
+      assert.equal(buf.length, Math.round((steps[k].dur + 0.3) * 44100));
+      for (let i = 0; i < buf.length; i++) { assert.ok(!Number.isNaN(buf[i])); peak = Math.max(peak, Math.abs(buf[i])); }
+    }
+  }
+  assert.ok(peak < 0.95 && peak > 0.3, `peak ${peak}`);
+});
+
+test('chorale notation: four voices, key signatures, correct spelling of chromatic tones', () => {
+  const rng = seeded(99);
+  for (const key of KEY_NAMES) {
+    const bars = composeChorale(rollPairsWith(rng), { key });
+    const abc = choraleToAbc(bars, key);
+    assert.ok(abc.includes(`K:${key}\n`) && abc.includes('%%score {(S A) (T B)}'));
+    for (const v of ['S', 'A', 'T', 'B']) {
+      const lines = abc.split('\n').filter((l) => l.startsWith(`[V:${v}]`));
+      assert.equal(lines.length, 2, `${key} voice ${v} has two lines`);
+      const notes = lines.join(' ').match(/[\^_=]*[A-Ga-g][,']*2/g) || [];
+      assert.equal(notes.length, 16, `${key} voice ${v}: ${lines.join(' ')}`);
+    }
+    assert.equal((abc.match(/!fermata!/g) || []).length, 8);
+  }
+  // spelling: in F major the raised fourth of V/V is B natural, in D major the lowered sixth of iv is B flat
+  assert.equal(keyAccidental('F', 'B'), -1); assert.equal(degreeLetter('F', 4), 'B');
+  const f = composeChorale(Array.from({ length: 16 }, (_, i) => (i === 6 ? [1, 1] : [3, 4])), { key: 'F' });   // position 7, total 2 -> V7/V
+  assert.equal(f[6].symbol, 'V7ofV');
+  const abcF = choraleToAbc(f, 'F');
+  assert.ok(/=[Bb]/.test(abcF), `B natural written in F major: ${abcF}`);
+  const d = composeChorale(Array.from({ length: 16 }, (_, i) => (i === 6 ? [1, 2] : [3, 4])), { key: 'D' });   // position 7, total 3 -> iv
+  assert.equal(d[6].symbol, 'iv');
+  assert.ok(/_[Bb]/.test(choraleToAbc(d, 'D')), 'B flat written in D major');
+  assert.deepEqual(choralePlan(f).map(choraleScoreIndex), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7]);
 });
 
 // ---------- run ----------
