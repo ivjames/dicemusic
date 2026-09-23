@@ -326,7 +326,7 @@ test('chorale notation: four voices, key signatures, correct spelling of chromat
   const abcF = choraleToAbc(f, 'F');
   assert.ok(/=[Bb]/.test(abcF), `B natural written in F major: ${abcF}`);
   const d = composeChorale(Array.from({ length: 16 }, (_, i) => (i === 6 ? [1, 2] : [3, 4])), { key: 'D' });   // position 7, total 3 -> iv
-  assert.equal(d[5].symbol, 'iv');
+  assert.equal(d[6].symbol, 'iv');
   assert.ok(/_[Bb]/.test(choraleToAbc(d, 'D')), 'B flat written in D major');
   assert.deepEqual(choralePlan(f).map(choraleScoreIndex), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7]);
 });
