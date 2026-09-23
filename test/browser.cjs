@@ -51,7 +51,7 @@ async function main() {
   await step('Play highlights bars in order with aria-current; timing follows the bar length', async () => {
     await page.click('#play');
     await page.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
-    barSamples = await page.evaluate(() => window.__mozart.barSamples());
+    barSamples = await page.evaluate(() => window.__mozart.stepStarts()[1]);
     const seen = [];
     const t0 = Date.now();
     while (Date.now() - t0 < 5200) {
@@ -161,7 +161,8 @@ async function main() {
     assert.ok(bytes.equals(expected), 'download differs from in-page mixdown');
     const sr = bytes.readUInt32LE(24); const dataLen = bytes.readUInt32LE(40);
     const plan = await page.evaluate(() => window.__mozart.state.plan.length);
-    assert.equal(dataLen / 2, 15 * barSamples + Math.round((1.5517241379 + 0.5) * sr), 'length is 16 bars plus tail');
+    const starts = await page.evaluate(() => window.__mozart.stepStarts());
+    assert.equal(dataLen / 2, starts[15] + Math.round((1.5517241379 + 0.5) * sr), 'length is 16 bars plus tail');
     assert.equal(plan, 16);
     assert.ok(dl.suggestedFilename().endsWith('.wav'));
   });

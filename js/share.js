@@ -1,9 +1,10 @@
 // Shareable-URL codec. The URL stores the raw dice, never the derived totals or measures,
-// so a link always reproduces the exact music: ?d=<32 digits 1-6>&l=<locks as 16 bits, hex>&r=1
+// so a link always reproduces the exact music: ?d=<32 digits 1-6>&l=<locks as 16 bits, hex>
+// plus whatever extra settings a game adds (the minuet's r=1, the chorale's k=G).
 import { BARS } from './table.js?v=dev';
 import { isPair } from './dice.js?v=dev';
 
-export function encodeState({ pairs, locks = [], repeats = false }) {
+export function encodeState({ pairs, locks = [], extra = {} }) {
   if (!Array.isArray(pairs) || pairs.length !== BARS || !pairs.every(isPair)) {
     throw new RangeError('encodeState needs 16 complete dice pairs');
   }
@@ -13,13 +14,14 @@ export function encodeState({ pairs, locks = [], repeats = false }) {
   const params = new URLSearchParams();
   params.set('d', d);
   if (bits) params.set('l', bits.toString(16));
-  if (repeats) params.set('r', '1');
+  for (const [k, v] of Object.entries(extra)) if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
   return params.toString();
 }
 
 /**
- * Parse a query string. Returns { pairs, locks, repeats } for a valid link,
- * { empty: true } when the link carries no composition, or { error } when it is malformed.
+ * Parse a query string. Returns { pairs, locks, params } for a valid link (params is the
+ * URLSearchParams for the game's own settings), { empty: true } when the link carries no
+ * composition, or { error } when it is malformed.
  */
 export function decodeState(search) {
   let params;
@@ -29,7 +31,7 @@ export function decodeState(search) {
     return { error: 'The link could not be read.' };
   }
   const d = params.get('d');
-  if (d === null) return { empty: true };
+  if (d === null) return { empty: true, params };
   if (!/^[1-6]{32}$/.test(d)) {
     return { error: 'The link does not hold a valid set of dice, so nothing was loaded.' };
   }
@@ -44,9 +46,5 @@ export function decodeState(search) {
     const bits = parseInt(l, 16);
     for (let i = 0; i < BARS; i++) locks[i] = Boolean(bits & (1 << i));
   }
-  const r = params.get('r');
-  if (r !== null && r !== '1' && r !== '0') {
-    return { error: 'The link holds an unknown repeat setting, so nothing was loaded.' };
-  }
-  return { pairs, locks, repeats: r === '1' };
+  return { pairs, locks, params };
 }

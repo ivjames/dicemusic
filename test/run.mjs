@@ -85,18 +85,18 @@ test('rollAll gives 16 pairs; rollUnlocked keeps locked bars; rerollBar touches 
 });
 
 // ---------- share links ----------
-test('share link round-trips dice, locks and the repeat flag', () => {
+test('share link round-trips dice, locks and a game setting', () => {
   const pairs = rollAll();
   const locks = pairs.map((_, i) => i % 3 === 0);
-  const qs = encodeState({ pairs, locks, repeats: true });
+  const qs = encodeState({ pairs, locks, extra: { r: '1' } });
   const back = decodeState('?' + qs);
-  assert.deepEqual(back.pairs, pairs); assert.deepEqual(back.locks, locks); assert.equal(back.repeats, true);
+  assert.deepEqual(back.pairs, pairs); assert.deepEqual(back.locks, locks); assert.equal(back.params.get('r'), '1');
   const plain = decodeState('?' + encodeState({ pairs }));
-  assert.deepEqual(plain.locks, new Array(BARS).fill(false)); assert.equal(plain.repeats, false);
+  assert.deepEqual(plain.locks, new Array(BARS).fill(false)); assert.equal(plain.params.get('r'), null);
 });
 
 test('malformed links are rejected without throwing', () => {
-  for (const bad of ['?d=123', '?d=' + '7'.repeat(32), '?d=' + '1'.repeat(31) + 'x', '?d=' + '3'.repeat(33), '?d=' + '2'.repeat(32) + '&l=zz', '?d=' + '2'.repeat(32) + '&l=12345', '?d=' + '2'.repeat(32) + '&r=yes', '?d=%E0%A4%A']) {
+  for (const bad of ['?d=123', '?d=' + '7'.repeat(32), '?d=' + '1'.repeat(31) + 'x', '?d=' + '3'.repeat(33), '?d=' + '2'.repeat(32) + '&l=zz', '?d=' + '2'.repeat(32) + '&l=12345', '?d=%E0%A4%A']) {
     const r = decodeState(bad);
     assert.ok(r.error, `expected error for ${bad}`);
   }
@@ -138,6 +138,7 @@ test('playback plan: 16 bars straight through with the second ending; 24 bars wi
   const p = playbackPlan(ids, false);
   assert.deepEqual(p.map((s) => s.bar), [...Array(16).keys()]);
   assert.ok(p.every((s) => s.ending === 'second'));
+  assert.ok(p.every((s, k) => s.key === bufferKey(s.measureId, s.ending) && Math.abs(s.at - k * BAR_SECONDS) < 1e-9 && s.dur === BAR_SECONDS));
   const r = playbackPlan(ids, true);
   assert.equal(r.length, 24);
   assert.deepEqual(r.map((s) => s.bar), [...Array(8).keys(), ...Array(8).keys(), ...[...Array(8).keys()].map((b) => b + 8)]);
@@ -148,15 +149,15 @@ test('mixdown lays the buffers exactly one bar apart, tails overlapping; WAV rou
   const ids = [32, 157, 163, 103, 154, 129, 118, 100, 120, 88, 19, 29, 51, 58, 1, 93];
   const plan = playbackPlan(ids, false);
   const mix = mixdown(plan, buffers, SR);
-  const stride = barSamples(SR);
-  assert.equal(mix.length, 15 * stride + measureSamples(SR));
+  const start = (k) => Math.round(k * BAR_SECONDS * SR);
+  assert.equal(mix.length, start(15) + measureSamples(SR));
   // sample inside bar 5 equals the sum of bar 5's buffer and bar 4's tail
   const k = 4, i = 100;
-  const expected = buffers.get('154')[i] + buffers.get('103')[stride + i];
-  assert.ok(Math.abs(mix[k * stride + i] - expected) < 1e-6);
+  const expected = buffers.get('154')[i] + buffers.get('103')[start(4) - start(3) + i];
+  assert.ok(Math.abs(mix[start(k) + i] - expected) < 1e-6);
   const dec = decodeWav(encodeWav(mix, SR));
   assert.equal(dec.sampleRate, SR); assert.equal(dec.channels, 1); assert.equal(dec.bits, 16); assert.equal(dec.samples.length, mix.length);
-  assert.ok(Math.abs(dec.samples[k * stride + i] / 32767 - mix[k * stride + i]) < 1e-4);
+  assert.ok(Math.abs(dec.samples[start(k) + i] / 32767 - mix[start(k) + i]) < 1e-4);
   const seconds = mix.length / SR;
   assert.ok(seconds > 24 && seconds < 26, `length ${seconds}s`);
 });
