@@ -145,7 +145,7 @@ async function renderScore() {
   try {
     const ABCJS = await loadAbcjs();
     if (scoreEl.dataset.abc !== abc) return;       // a newer roll won
-    ABCJS.renderAbc(scoreEl, abc, { add_classes: true, responsive: 'resize', foregroundColor: 'currentColor', paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0, staffwidth: 900 });
+    engrave(ABCJS, abc);
     scoreEl.setAttribute('aria-label', `Score of the minuet, measures ${state.bars.map((b) => b.measure).join(', ')}`);
     $('#save-score').disabled = false;
     scoreMm = -1;
@@ -155,6 +155,34 @@ async function renderScore() {
     $('#save-score').disabled = true;
   }
 }
+// Lay the score out for the width we have: eight bars a line on a wide screen (the two
+// systems of the print), fewer on a phone, at a readable size rather than shrunk to fit.
+function engrave(ABCJS, abc) {
+  const width = Math.max(320, scoreEl.clientWidth - 24);
+  const wide = width >= 860;
+  const scale = width >= 620 ? 1 : 0.9;
+  const opts = {
+    add_classes: true, foregroundColor: 'currentColor', scale, staffwidth: width / scale,
+    paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0,
+  };
+  // Wide: the two systems of the print (the ABC's own line breaks). Narrower: let abcjs
+  // re-flow into shorter systems at a readable size rather than shrinking the print to fit.
+  if (!wide) opts.wrap = { minSpacing: 1.4, maxSpacing: 2.6, preferredMeasuresPerLine: width >= 620 ? 6 : width >= 440 ? 4 : 3 };
+  ABCJS.renderAbc(scoreEl, abc, opts);
+  scoreEl.dataset.width = String(width);
+}
+let resizeTimer = 0;
+window.addEventListener('resize', () => {
+  if (!scoreEl.dataset.abc || !window.ABCJS) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const width = Math.max(320, scoreEl.clientWidth - 24);
+    if (String(width) === scoreEl.dataset.width) return;
+    engrave(window.ABCJS, scoreEl.dataset.abc);
+    scoreMm = -1; highlightScore(player.state === 'idle' ? -1 : scoreMeasureIndex(state.plan[Math.max(0, player.currentIndex())]));
+  }, 150);
+});
+
 function highlightScore(mm) {
   if (mm === scoreMm) return;
   if (scoreMm >= 0) for (const el of scoreEl.querySelectorAll(`.abcjs-mm${scoreMm}`)) el.classList.remove('is-current');

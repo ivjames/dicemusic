@@ -96,7 +96,6 @@ export function minuetToAbc(measures, { title = '' } = {}) {
   return [
     'X:1',
     `T:${title}`,
-    'C:attributed to W. A. Mozart (K. 516f)',
     'M:3/8',
     'L:1/16',
     'Q:1/8=116',
