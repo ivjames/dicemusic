@@ -36,13 +36,21 @@ WAV, and the exact composition shared by URL.
   playback stops it and resets the playhead first. `window.__mozart` is a hook for the tests.
 - `js/app.js` — the minuet as a game config on that controller.
 - `chorale/index.html`, `js/chorale-app.js`, `js/chorale.js`, `js/chorale-harmony.js`,
-  `js/chorale-voicing.js` — **Chorale Dice**, a companion page at `/chorale/`: dice choose a
+  `js/chorale-voicing.js`, `js/chorale-motion.js`, `js/chorale-prelude.js`,
+  `js/chorale-notation.js` — **Chorale Dice**, a companion page at `/chorale/`: dice choose a
   harmony at each of sixteen positions from a table built so every roll gives two phrases
   ending on a half cadence and a perfect authentic cadence; a dynamic-programming voice-leading
   engine then writes SATB (ranges, spacing, doublings, no parallel or hidden fifths and
-  octaves, resolving leading tones, sevenths and chromatic tones); the four voices are
-  synthesised as sustained tones and engraved on two staves. Seven major keys. Original
-  music, not a historical game, and the page says so.
+  octaves, resolving leading tones, sevenths and chromatic tones). An elaboration pass
+  (`chorale-motion.js`) then adds unaccented passing notes, skipped chord tones and soprano
+  neighbours on the second half of a chord wherever they make no parallels, crossing or
+  unison, without touching the chords or the voice leading; each chord becomes one or two
+  *cells*. Two textures render the cells: four sustained voices on two staves (one chord per
+  minim, fermatas at the cadences), or *broken chords* (`chorale-prelude.js`): each cell as a
+  bass–tenor–alto–soprano–alto–tenor figure in quavers, one chord per 12/8 bar, played by the
+  minuet's struck-string voice and engraved on a grand staff. Key, texture and motion ride in
+  the link as `k`, `t` and `m`. Seven major keys. Original music, not a historical game, and
+  the page says so.
 
 ## Where the music comes from
 

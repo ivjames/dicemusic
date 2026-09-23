@@ -231,7 +231,20 @@ export const CHORALE_TAIL_SECONDS = 0.3;
  * and holding for `seconds`; the buffer is `seconds` plus a short tail for the release.
  */
 export function renderChord(notes, seconds, sampleRate) {
+  return renderSustainedNotes(notes.map((nt) => ({ t: 0, d: Math.max(0.05, seconds - 0.07), midi: nt.midi, vel: nt.vel })), seconds, sampleRate);
+}
+
+/** Render timed notes [{ t, d, midi, vel }] (seconds) for the sustained instrument into a buffer of `seconds` plus its tail. */
+export function renderSustainedNotes(events, seconds, sampleRate) {
   const out = new Float32Array(Math.round((seconds + CHORALE_TAIL_SECONDS) * sampleRate));
-  for (const nt of notes) addSustained(out, { t: 0, d: Math.max(0.05, seconds - 0.07), midi: nt.midi, vel: nt.vel }, sampleRate);
+  for (const ev of events) addSustained(out, ev, sampleRate);
+  return out;
+}
+
+/** Render timed notes [{ t, d, midi, vel }] (seconds) for the struck-string voice into a buffer of `seconds` plus its tail, at master gain. */
+export function renderStruckNotes(events, seconds, sampleRate) {
+  const out = new Float32Array(Math.round((seconds + TAIL_SECONDS) * sampleRate));
+  for (const ev of events) addNote(out, ev, sampleRate);
+  for (let i = 0; i < out.length; i++) out[i] *= MASTER_GAIN;
   return out;
 }

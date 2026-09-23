@@ -9,7 +9,9 @@ import { encodeWav, decodeWav } from '../js/wav.js';
 import { voiceToAbc, minuetToAbc, scoreMeasureIndex, pitchName } from '../js/notation.js';
 import { CHORALE_TABLE, CHORDS, KEY_NAMES, chordFor, keyAccidental, degreeLetter } from '../js/chorale-harmony.js';
 import { voiceLead, violations } from '../js/chorale-voicing.js';
-import { compose as composeChorale, plan as choralePlan, render as renderChoraleStep, choraleToAbc, scoreIndex as choraleScoreIndex, CHORD_SECONDS, FERMATA_FACTOR, BREATH_SECONDS } from '../js/chorale.js';
+import { compose as composeChorale, plan as choralePlan, render as renderChoraleStep, choraleToAbc, scoreIndex as choraleScoreIndex, CHORD_SECONDS, FERMATA_FACTOR, BREATH_SECONDS, preludePlan, renderPrelude, preludeToAbc, PRELUDE_BAR_SECONDS, choraleGame, TEXTURES, MOTIONS } from '../js/chorale.js';
+import { diatonic, KINDS, MAX_MOVING } from '../js/chorale-motion.js';
+import { RANGES } from '../js/chorale-voicing.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -296,6 +298,7 @@ test('chorale: compose, plan timing with fermatas and breath, sustained render l
     assert.ok(Math.abs(steps[8].at - (steps[7].at + steps[7].dur + BREATH_SECONDS)) < 1e-9, 'a breath after the half cadence');
     for (let k = 1; k < 16; k++) if (k !== 8) assert.ok(Math.abs(steps[k].at - (steps[k - 1].at + steps[k - 1].dur)) < 1e-9);
     assert.equal(new Set(steps.map((s) => s.key)).size, 16);
+    assert.deepEqual(steps.map(choraleScoreIndex), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7]);
     for (const k of [0, 7, 15]) {
       const buf = renderChoraleStep(steps[k], 44100);
       assert.equal(buf.length, Math.round((steps[k].dur + 0.3) * 44100));
@@ -311,13 +314,17 @@ test('chorale notation: four voices, key signatures, correct spelling of chromat
     const bars = composeChorale(rollPairsWith(rng), { key });
     const abc = choraleToAbc(bars, key);
     assert.ok(abc.includes(`K:${key}\n`) && abc.includes('%%score {(S A) (T B)}'));
+    const plainAbc = choraleToAbc(composeChorale(bars.map((b) => b.dice), { key, motion: 'plain' }), key);
     for (const v of ['S', 'A', 'T', 'B']) {
       const lines = abc.split('\n').filter((l) => l.startsWith(`[V:${v}]`));
       assert.equal(lines.length, 2, `${key} voice ${v} has two lines`);
-      const notes = lines.join(' ').match(/[\^_=]*[A-Ga-g][,']*2/g) || [];
-      assert.equal(notes.length, 16, `${key} voice ${v}: ${lines.join(' ')}`);
+      const tokens = lines.map((l) => l.replace(/^\[V:[A-Z]\]\s*/, '').replace(/!fermata!/g, '')).join(' ').match(/[\^_=]*[A-Ga-g][,']*2?/g) || [];
+      assert.equal(tokens.reduce((n, t) => n + (t.endsWith('2') ? 2 : 1), 0), 32, `${key} voice ${v} fills sixteen minims: ${lines.join(' ')}`);
+      const plainNotes = plainAbc.split('\n').filter((l) => l.startsWith(`[V:${v}]`)).join(' ').match(/[\^_=]*[A-Ga-g][,']*2/g) || [];
+      assert.equal(plainNotes.length, 16, `${key} voice ${v} plain: sixteen minims`);
     }
     assert.equal((abc.match(/!fermata!/g) || []).length, 8);
+    assert.ok(/[A-Ga-g][,']* [\^_=]*[A-Ga-g][,']*[ |]/.test(abc.replace(/^\[V:[A-Z]\] /gm, '')), `${key}: some voice moves in crotchets`);
   }
   // spelling: in F major the raised fourth of V/V is B natural, in D major the lowered sixth of iv is B flat
   assert.equal(keyAccidental('F', 'B'), -1); assert.equal(degreeLetter('F', 4), 'B');
@@ -329,6 +336,160 @@ test('chorale notation: four voices, key signatures, correct spelling of chromat
   assert.equal(d[6].symbol, 'iv');
   assert.ok(/_[Bb]/.test(choraleToAbc(d, 'D')), 'B flat written in D major');
   assert.deepEqual(choralePlan(f).map(choraleScoreIndex), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7]);
+});
+
+const isPerfectIv = (iv) => { const m = ((iv % 12) + 12) % 12; return m === 0 || m === 7; };
+const parallels = (p, c) => {
+  const out = [];
+  for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+    if (p[i] === c[i] || p[j] === c[j]) continue;
+    const iv1 = p[j] - p[i], iv2 = c[j] - c[i];
+    if (isPerfectIv(iv1) && isPerfectIv(iv2) && ((iv1 % 12) + 12) % 12 === ((iv2 % 12) + 12) % 12) out.push(`${i}-${j}`);
+  }
+  return out;
+};
+
+test('chorale motion: over 700 rolls every added note is a passing, skipped or neighbour tone that breaks no rule', () => {
+  const rng = seeded(31337);
+  const NAMES = ['B', 'T', 'A', 'S'];
+  let elaborated = 0, total = 0, neighbours = 0, consecutive = 0;
+  for (const key of KEY_NAMES) {
+    for (let n = 0; n < 100; n++) {
+      const pairs = rollPairsWith(rng);
+      const plain = composeChorale(pairs, { key, motion: 'plain' });
+      const bars = composeChorale(pairs, { key, motion: 'passing' });
+      assert.deepEqual(bars.map((b) => b.voicing), plain.map((b) => b.voicing), 'the skeleton is untouched');
+      assert.ok(plain.every((b) => b.cells.length === 1 && b.kinds === null));
+      assert.deepEqual(composeChorale(pairs, { key }).map((b) => b.cells), bars.map((b) => b.cells), 'passing is the default and deterministic');
+      const tag = `${key} ${bars.map((b) => b.symbol).join(' ')}`;
+      bars.forEach((b, k) => {
+        total++;
+        if (b.cells.length === 1) { assert.equal(b.kinds, null); return; }
+        elaborated++;
+        assert.ok(k !== 7 && k !== 15, `${tag}: held chord ${k} elaborated`);
+        const [a, c] = b.cells, nxt = bars[k + 1].voicing;
+        const chromatic = b.realized.tones.some((t) => t.alt !== 0);
+        let moved = 0;
+        for (let v = 0; v < 4; v++) {
+          if (c[v] === a[v]) { assert.equal(b.kinds[v], null); continue; }
+          moved++;
+          const kind = b.kinds[v];
+          assert.ok(KINDS.includes(kind), `${tag}: ${k} ${NAMES[v]} kind ${kind}`);
+          assert.ok(c[v] >= RANGES[NAMES[v]][0] && c[v] <= RANGES[NAMES[v]][1], `${tag}: ${k} ${NAMES[v]} out of range`);
+          if (kind === 'passing') {
+            assert.ok(!chromatic, `${tag}: passing tone over a chromatic chord at ${k}`);
+            assert.ok([3, 4].includes(Math.abs(nxt[v] - a[v])) && Math.abs(c[v] - a[v]) <= 2 && Math.abs(nxt[v] - c[v]) <= 2, `${tag}: ${k} ${NAMES[v]} passing ${a[v]}-${c[v]}-${nxt[v]}`);
+            assert.ok(diatonic(c[v], key), `${tag}: ${k} ${NAMES[v]} passing tone not in the key`);
+          } else if (kind === 'skip') {
+            assert.ok(Math.abs(nxt[v] - a[v]) >= 5 && (c[v] - a[v]) * (nxt[v] - c[v]) > 0, `${tag}: ${k} ${NAMES[v]} skip ${a[v]}-${c[v]}-${nxt[v]}`);
+            const tone = b.realized.toneOf(c[v] % 12);
+            assert.ok(tone && tone.alt === 0, `${tag}: ${k} ${NAMES[v]} skip to a non-chord or chromatic tone`);
+            if (b.realized.seventh) assert.notEqual(c[v] % 12, b.realized.seventh.pc, `${tag}: ${k} skip onto the seventh`);
+          } else {
+            assert.equal(v, 3, `${tag}: neighbour in ${NAMES[v]}`);
+            assert.ok(!chromatic && nxt[v] === a[v] && Math.abs(c[v] - a[v]) <= 2 && diatonic(c[v], key), `${tag}: ${k} neighbour ${a[v]}-${c[v]}-${nxt[v]}`);
+            neighbours++;
+            if (k > 0 && bars[k - 1].kinds && bars[k - 1].kinds[3] === 'neighbour') consecutive++;
+          }
+        }
+        assert.ok(moved >= 1 && moved <= MAX_MOVING, `${tag}: ${k} moves ${moved} voices`);
+        for (let i = 0; i < 3; i++) {
+          assert.ok(c[i] <= c[i + 1], `${tag}: ${k} voices cross in the second half`);
+          if (b.kinds[i] || b.kinds[i + 1]) assert.ok(c[i] < c[i + 1], `${tag}: ${k} added note in unison with its neighbour`);
+        }
+        assert.deepEqual(parallels(a, c), [], `${tag}: ${k} parallels into the added note`);
+        assert.deepEqual(parallels(c, nxt), [], `${tag}: ${k} parallels out of the added note`);
+      });
+    }
+  }
+  const share = elaborated / total;
+  assert.ok(share > 0.2 && share < 0.6, `elaborated share ${share.toFixed(2)}`);
+  assert.ok(neighbours > 0 && consecutive === 0, `${neighbours} neighbours, ${consecutive} on consecutive chords`);
+});
+
+test('chorale render with passing notes: a moving voice sings two notes, level stays under 0.95', () => {
+  const rng = seeded(8);
+  let peak = 0, moving = 0;
+  for (let n = 0; n < 6; n++) {
+    const key = KEY_NAMES[n % KEY_NAMES.length];
+    const bars = composeChorale(rollPairsWith(rng), { key });
+    const steps = choralePlan(bars);
+    for (const step of steps.filter((s) => s.cells.length === 2).slice(0, 2)) {
+      moving++;
+      const buf = renderChoraleStep(step, 44100);
+      assert.equal(buf.length, Math.round((step.dur + 0.3) * 44100));
+      for (let i = 0; i < buf.length; i++) { assert.ok(!Number.isNaN(buf[i])); peak = Math.max(peak, Math.abs(buf[i])); }
+    }
+  }
+  assert.ok(moving > 0 && peak < 0.95 && peak > 0.3, `peak ${peak} over ${moving} steps`);
+});
+
+test('prelude texture: one 12/8 bar per chord, sixteen bars, struck level, grand-staff notation', () => {
+  const rng = seeded(21);
+  let peak = 0;
+  for (let n = 0; n < 8; n++) {
+    const key = KEY_NAMES[n % KEY_NAMES.length];
+    const pairs = rollPairsWith(rng);
+    const bars = composeChorale(pairs, { key, texture: 'prelude' });
+    const steps = preludePlan(bars);
+    assert.equal(steps.length, 16);
+    steps.forEach((s, i) => {
+      assert.ok(Math.abs(s.at - i * PRELUDE_BAR_SECONDS) < 1e-9 && Math.abs(s.dur - PRELUDE_BAR_SECONDS) < 1e-9);
+      assert.equal(choraleScoreIndex(s), i);
+      assert.equal(s.cells.length, 2);
+      assert.equal(Boolean(s.last), i === 15);
+    });
+    assert.equal(new Set(steps.map((s) => s.key)).size, 16);
+    for (const k of [0, 5, 15]) {
+      const buf = renderPrelude(steps[k], 44100);
+      assert.equal(buf.length, Math.round((steps[k].dur + 0.5) * 44100));
+      for (let i = 0; i < buf.length; i++) { assert.ok(!Number.isNaN(buf[i])); peak = Math.max(peak, Math.abs(buf[i])); }
+    }
+    const plainSteps = preludePlan(composeChorale(pairs, { key, texture: 'prelude', motion: 'plain' }));
+    assert.ok(plainSteps.every((s) => s.cells[0].join() === s.cells[1].join()), 'plain: both figures of a bar alike');
+    const abc = preludeToAbc(bars, key);
+    assert.ok(abc.includes('M:12/8') && abc.includes('L:1/8') && abc.includes('%%score {RH LH}') && abc.includes(`K:${key}\n`));
+    for (const v of ['RH', 'LH']) {
+      const lines = abc.split('\n').filter((l) => l.startsWith(`[V:${v}]`));
+      assert.equal(lines.length, 4, `${key} ${v}: four lines`);
+      const body = lines.map((l) => l.replace(/^\[V:[A-Z]+\]\s*/, '')).join(' ');
+      assert.equal((body.match(/\|/g) || []).length, 16, `${key} ${v}: sixteen bars`);
+      assert.equal((body.match(/[\^_=]*[A-Ga-g][,']*/g) || []).length, 15 * 6 + 4, `${key} ${v}: six notes a bar and a final chord`);
+    }
+    assert.ok(/\[[^\]]+\]6-\[[^\]]+\]6 \|\]/.test(abc), 'the last chord is held across the bar');
+  }
+  assert.ok(peak < 0.95 && peak > 0.3, `peak ${peak}`);
+});
+
+test('chorale settings: the link carries key, texture and motion and rejects unknown values', () => {
+  const dflt = choraleGame.defaultSettings();
+  assert.deepEqual(dflt, { key: 'C', texture: 'chorale', motion: 'passing' });
+  assert.ok(Object.values(choraleGame.encodeSettings(dflt)).every((v) => v === undefined), 'defaults add nothing to the link');
+  const s1 = { key: 'G', texture: 'prelude', motion: 'plain' };
+  assert.deepEqual(choraleGame.encodeSettings(s1), { k: 'G', t: 'prelude', m: 'plain' });
+  const pairs = Array.from({ length: 16 }, () => [3, 4]);
+  const q = encodeState({ pairs, locks: [], extra: choraleGame.encodeSettings(s1) });
+  assert.ok(q.includes('k=G') && q.includes('t=prelude') && q.includes('m=plain'));
+  const back = {};
+  assert.equal(choraleGame.decodeSettings(new URLSearchParams(q), back), null);
+  assert.deepEqual(back, s1);
+  const empty = {};
+  assert.equal(choraleGame.decodeSettings(new URLSearchParams(''), empty), null);
+  assert.deepEqual(empty, dflt);
+  assert.match(choraleGame.decodeSettings(new URLSearchParams('t=waltz'), {}), /texture/);
+  assert.match(choraleGame.decodeSettings(new URLSearchParams('m=fast'), {}), /motion/);
+  assert.match(choraleGame.decodeSettings(new URLSearchParams('k=H'), {}), /key/);
+  assert.deepEqual([TEXTURES, MOTIONS], [['chorale', 'prelude'], ['passing', 'plain']]);
+  // the renderer follows the step, not the settings at render time: a queued step of the other
+  // texture must still produce its own sound under its own key
+  const bars = composeChorale(pairs, { key: 'C' });
+  const choraleStep = choralePlan(bars)[0], preludeStep = preludePlan(bars)[0];
+  assert.equal(choraleStep.texture, 'chorale'); assert.equal(preludeStep.texture, 'prelude');
+  const stateSaysPrelude = { settings: { key: 'C', texture: 'prelude', motion: 'passing' } };
+  const stateSaysChorale = { settings: { key: 'C', texture: 'chorale', motion: 'passing' } };
+  assert.equal(choraleGame.render(choraleStep, 8000, stateSaysPrelude).length, Math.round((choraleStep.dur + 0.3) * 8000));
+  assert.equal(choraleGame.render(preludeStep, 8000, stateSaysChorale).length, Math.round((preludeStep.dur + 0.5) * 8000));
+  assert.notEqual(choraleStep.key, preludeStep.key);
 });
 
 // ---------- run ----------
