@@ -50,7 +50,8 @@ as a phantom second build.)
 
 - The app is a set of ES modules under `js/` loaded by `index.html`; the score
   data, the sources it was taken from, the tests and the known limits are in
-  `README.md`.
+  `README.md`. The one third-party file is `js/vendor/abcjs-basic-min.js`
+  (MIT), loaded on demand to engrave the score; nothing is fetched from a CDN.
 - Tests: `node test/run.mjs` (Node) and `node test/browser.cjs` (Playwright,
   headless Chromium). Run both before opening a PR.
 - The vhost serves `index.html` as `no-cache` but the modules under `js/` with

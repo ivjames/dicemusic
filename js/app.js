@@ -4,6 +4,7 @@ import { encodeState, decodeState } from './share.js';
 import { renderMeasure, playbackPlan, mixdown, bufferKey, barSamples, BAR_SECONDS } from './synth.js';
 import { encodeWav } from './wav.js';
 import { Player } from './player.js';
+import { minuetToAbc, scoreMeasureIndex } from './notation.js';
 
 const $ = (sel) => document.querySelector(sel);
 const grid = $('#bars');
@@ -110,11 +111,71 @@ function highlight(index) {
   }
   const pos = $('#position');
   if (step) {
-    const pass = state.repeats ? ` (${index < 8 || (index >= 16 && index < 24) ? 'first' : 'second'} time)` : '';
+    const pass = state.repeats && bar < 8 ? ` (${index < 8 ? 'first' : 'second'} time)` : '';
     pos.textContent = `Playing bar ${bar + 1}${pass}`;
   } else {
     pos.textContent = player.state === 'paused' ? 'Paused' : '';
   }
+  highlightScore(step ? scoreMeasureIndex(step) : -1);
+}
+
+// ---------- the score ----------
+const scoreEl = $('#score');
+let abcjsLoading = null;
+let scoreMm = -1;
+function loadAbcjs() {
+  if (window.ABCJS) return Promise.resolve(window.ABCJS);
+  if (!abcjsLoading) {
+    abcjsLoading = new Promise((resolve, reject) => {
+      const sc = document.createElement('script');
+      sc.src = scoreEl.dataset.engraver || 'js/vendor/abcjs-basic-min.js';
+      sc.onload = () => resolve(window.ABCJS);
+      sc.onerror = () => { abcjsLoading = null; reject(new Error('The notation library could not be loaded.')); };
+      document.head.appendChild(sc);
+    });
+  }
+  return abcjsLoading;
+}
+async function renderScore() {
+  const section = $('#score-section');
+  if (!state.bars) { section.hidden = true; scoreEl.innerHTML = ''; return; }
+  section.hidden = false;
+  const abc = minuetToAbc(state.bars.map((b) => b.measure));
+  scoreEl.dataset.abc = abc;
+  try {
+    const ABCJS = await loadAbcjs();
+    if (scoreEl.dataset.abc !== abc) return;       // a newer roll won
+    ABCJS.renderAbc(scoreEl, abc, { add_classes: true, responsive: 'resize', foregroundColor: 'currentColor', paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0, staffwidth: 900 });
+    scoreEl.setAttribute('aria-label', `Score of the minuet, measures ${state.bars.map((b) => b.measure).join(', ')}`);
+    $('#save-score').disabled = false;
+    scoreMm = -1;
+    highlightScore(player.state === 'idle' ? -1 : scoreMeasureIndex(state.plan[Math.max(0, player.currentIndex())]));
+  } catch (err) {
+    scoreEl.innerHTML = `<p class="score-fallback">${err.message} The music still plays; the notation is only a picture of it.</p>`;
+    $('#save-score').disabled = true;
+  }
+}
+function highlightScore(mm) {
+  if (mm === scoreMm) return;
+  if (scoreMm >= 0) for (const el of scoreEl.querySelectorAll(`.abcjs-mm${scoreMm}`)) el.classList.remove('is-current');
+  if (mm >= 0) for (const el of scoreEl.querySelectorAll(`.abcjs-mm${mm}`)) el.classList.add('is-current');
+  scoreMm = mm;
+}
+function onSaveScore() {
+  const svg = scoreEl.querySelector('svg');
+  if (!svg) return;
+  const copy = svg.cloneNode(true);
+  copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  copy.removeAttribute('style');
+  for (const el of copy.querySelectorAll('.is-current')) el.classList.remove('is-current');
+  const text = `<?xml version="1.0" encoding="UTF-8"?>\n<!-- Musical Dice Game (K. 516f), measures ${state.bars.map((b) => b.measure).join(' ')} -->\n` + copy.outerHTML.replace(/currentColor/g, '#000');
+  const blob = new Blob([text], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mozart-dice-${state.pairs.map((p) => p.join('')).join('')}.svg`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  say('Score saved as SVG.');
 }
 
 // ---------- composition changes ----------
@@ -127,6 +188,7 @@ function setPairs(pairs, { fromLink = false } = {}) {
   state.generation++;
   renderBars();
   highlight(-1);
+  renderScore();
   if (!fromLink) updateUrl();
 }
 
@@ -299,6 +361,7 @@ function init() {
   $('#stop').addEventListener('click', () => { player.stop(); syncControls(); });
   $('#download').addEventListener('click', onDownload);
   $('#share').addEventListener('click', onShare);
+  $('#save-score').addEventListener('click', onSaveScore);
   $('#repeats').addEventListener('change', (e) => {
     state.repeats = e.target.checked;
     if (player.state !== 'idle') { player.stop(); syncControls(); }
@@ -343,6 +406,7 @@ function init() {
     state, player,
     exportBytes: async () => { const sr = player.ctx ? player.sampleRate : 44100; if (state.renderedRate !== sr) { state.rendered.clear(); state.renderedRate = sr; } await ensureRendered(); return new Uint8Array(encodeWav(mixdown(state.plan, state.rendered, sr), sr)); },
     barSamples: () => barSamples(player.sampleRate),
+    scoreReady: () => Boolean(scoreEl.querySelector('svg')),
   };
 }
 

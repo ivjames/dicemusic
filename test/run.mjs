@@ -6,6 +6,7 @@ import { encodeState, decodeState } from '../js/share.js';
 import { MEASURES, UNITS_PER_BAR } from '../js/score.js';
 import { renderMeasure, hasEndings, playbackPlan, mixdown, bufferKey, barSamples, measureSamples, realize, notesOf, BAR_SECONDS } from '../js/synth.js';
 import { encodeWav, decodeWav } from '../js/wav.js';
+import { voiceToAbc, minuetToAbc, scoreMeasureIndex, pitchName } from '../js/notation.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -131,15 +132,15 @@ test('ornaments are realised from the written note (trill on the upper neighbour
   assert.ok(ev4.length);
 });
 
-test('playback plan: 16 bars straight through with the second ending; 32 bars with repeats', () => {
+test('playback plan: 16 bars straight through with the second ending; 24 bars with the printed repeat', () => {
   const ids = optionsFor(0).concat(optionsFor(1)).slice(0, 16);
   ids[7] = optionsFor(7)[0];
   const p = playbackPlan(ids, false);
   assert.deepEqual(p.map((s) => s.bar), [...Array(16).keys()]);
   assert.ok(p.every((s) => s.ending === 'second'));
   const r = playbackPlan(ids, true);
-  assert.equal(r.length, 32);
-  assert.deepEqual(r.map((s) => s.bar), [...Array(8).keys(), ...Array(8).keys(), ...[...Array(8).keys()].map((b) => b + 8), ...[...Array(8).keys()].map((b) => b + 8)]);
+  assert.equal(r.length, 24);
+  assert.deepEqual(r.map((s) => s.bar), [...Array(8).keys(), ...Array(8).keys(), ...[...Array(8).keys()].map((b) => b + 8)]);
   assert.equal(r[7].ending, 'first'); assert.equal(r[15].ending, 'second');
 });
 
@@ -158,6 +159,49 @@ test('mixdown lays the buffers exactly one bar apart, tails overlapping; WAV rou
   assert.ok(Math.abs(dec.samples[k * stride + i] / 32767 - mix[k * stride + i]) < 1e-4);
   const seconds = mix.length / SR;
   assert.ok(seconds > 24 && seconds < 26, `length ${seconds}s`);
+});
+
+// ---------- notation ----------
+function abcUnits(voice) {
+  // total length in 32nds of one ABC voice line (L:1/16), ignoring ornaments
+  let total = 0;
+  const re = /(\[[^\]]*\]|[\^=]?[A-Ga-gz][,']*)(\d+(?:\/\d+)?|\/)?/g;
+  const body = voice.replace(/![a-z]+!/g, '');
+  let m;
+  while ((m = re.exec(body))) {
+    const l = m[2];
+    total += l === undefined ? 2 : l === '/' ? 1 : l.includes('/') ? 2 * Number(l.split('/')[0]) / Number(l.split('/')[1]) : 2 * Number(l);
+  }
+  return total;
+}
+test('notation: every measure and both endings fill exactly one 3/8 bar in each voice', () => {
+  for (let id = 1; id <= MEASURE_COUNT; id++) {
+    const m = MEASURES[id];
+    for (const variant of m.notes ? [m.notes] : [m.first, m.second]) {
+      for (const staff of [0, 1]) assert.equal(abcUnits(voiceToAbc(variant, staff)), UNITS_PER_BAR, `measure ${id} staff ${staff}: ${voiceToAbc(variant, staff)}`);
+    }
+  }
+});
+test('notation: known measures spell as expected, accidentals per ABC bar rules', () => {
+  assert.equal(voiceToAbc(MEASURES[1].notes, 1), 'f2d2g2'); assert.equal(voiceToAbc(MEASURES[1].notes, 0), 'F,2D,2G,2');
+  assert.equal(voiceToAbc(MEASURES[2].notes, 1), 'A2^FGBg');
+  assert.equal(voiceToAbc(MEASURES[138].notes, 0), 'D,,D,^C,D,=C,D,');     // C natural, as printed
+  assert.equal(voiceToAbc(MEASURES[4].notes, 1), 'g2!trill!d4');
+  assert.equal(voiceToAbc(MEASURES[5].first, 0), 'G,,2G,F,E,D,'); assert.equal(voiceToAbc(MEASURES[5].second, 0), 'G,,2B,G,^F,E,');
+  assert.equal(voiceToAbc(MEASURES[2].notes, 0), '[G,B,,]4z2');
+  assert.deepEqual(pitchName(60), { name: 'C', letter: 'C4', sharp: false });
+  assert.deepEqual(pitchName(84).name, "c'"); assert.deepEqual(pitchName(36).name, 'C,,');
+});
+test('notation: the tune has two staves, the volta over bar 8, and maps plan steps to engraved measures', () => {
+  const ids = [32, 157, 163, 103, 154, 129, 118, 100, 120, 88, 19, 29, 51, 58, 1, 93];
+  const abc = minuetToAbc(ids);
+  assert.ok(abc.includes('%%score {1 2}') && abc.includes('V:1 clef=treble') && abc.includes('V:2 clef=bass'));
+  assert.equal((abc.match(/\[V:1\]/g) || []).length, 2); assert.equal((abc.match(/\[V:2\]/g) || []).length, 2);
+  assert.equal((abc.match(/\[1 /g) || []).length, 2); assert.equal((abc.match(/:\|\[2 /g) || []).length, 2);
+  const plan = playbackPlan(ids, true);
+  assert.deepEqual(plan.map(scoreMeasureIndex), [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  assert.deepEqual(playbackPlan(ids, false).map(scoreMeasureIndex), [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  assert.throws(() => minuetToAbc([1, 2, 3]), RangeError);
 });
 
 // ---------- run ----------

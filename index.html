@@ -43,17 +43,27 @@
     <p id="summary" class="summary" hidden></p>
   </section>
 
+  <section class="score-section" id="score-section" aria-labelledby="score-heading" hidden>
+    <div class="score-head">
+      <h2 id="score-heading">The score</h2>
+      <button type="button" id="save-score" class="btn btn-small" disabled>Save score (SVG)</button>
+    </div>
+    <div id="score" class="score" role="img" aria-label="Score of the minuet"></div>
+    <p class="score-note">Engraved from the same notes that are played: two staves, the first half repeated with both endings of bar 8, the second half once, as printed.</p>
+  </section>
+
   <section class="prose" id="how" aria-labelledby="how-heading">
     <h2 id="how-heading">How it works</h2>
     <p>The game, published by Nikolaus Simrock in 1793 under Mozart's name, supplies 176 numbered one-bar pieces of music and a table with eleven rows (dice totals 2 to 12) and sixteen columns (the bars of a minuet). For each bar you throw two dice and play the numbered measure the table names. Every row of a column fits the same place in the same harmony, so any throw yields a coherent minuet in C major.</p>
     <p>This page does exactly that. Two independent fair dice are simulated for every bar and their faces are kept, not just the total, so seven comes up far more often than two or twelve, just as at a table. The URL records those dice and your locks; open it anywhere and the same minuet is rebuilt. Bar 8 has one printed version with a first and a second ending, and bar 16 two; the other fourteen bars each have eleven, which gives 11<sup>14</sup> × 2 selection sequences. Many of those sequences contain the same music, since several table entries are identical measures, so that number is not a count of distinct pieces.</p>
-    <p>The sound is made in your browser from the notes of the public-domain score, with a plain struck-string tone, and the WAV you download is the same rendering laid end to end. Nothing is fetched while you play. "Play with repeats" performs the minuet as printed, each half twice, with the first ending the first time through bar 8.</p>
+    <p>The sound is made in your browser from the notes of the public-domain score, with a plain struck-string tone, and the WAV you download is the same rendering laid end to end. Nothing is fetched while you play. "Play with repeats" performs the minuet as printed: the first half twice, with the first ending the first time through bar 8, then the second half once.</p>
     <p>Whether Mozart wrote the game is unverified: his name is on the cover, and a manuscript of 176 bars in his hand from 1787 exists without instructions or dice, but the link between the two has not been established. <a href="https://en.wikipedia.org/wiki/Musikalisches_W%C3%BCrfelspiel">More background</a>. The trio of the published game, which uses one die, is not included yet.</p>
     <h2>Sources</h2>
     <ul class="sources">
       <li>Rules and lookup table: <a href="https://introcs.cs.princeton.edu/java/assignments/mozart.html">Princeton COS 126, <i>Mozart Waltz Generator</i></a>, which reproduces the Simrock table.</li>
       <li>Score: <a href="https://imslp.org/wiki/Musikalisches_W%C3%BCrfelspiel,_K.516f_(Mozart,_Wolfgang_Amadeus)">K. 516f, Simrock, Bonn 1793</a> (public domain, IMSLP). The notes were taken from three independent transcriptions and cross-checked against the print: <a href="https://github.com/justineuro/mdginabc2svg">Justine Leon A. Uro's ABC transcription</a> (CC BY 4.0), <a href="https://github.com/craigsapp/Musikalisches-Wuerfelspiel">Craig Stuart Sapp, Daniel Shanahan and Mauricio Rodriguez's Humdrum encoding</a>, and <a href="https://github.com/Xpktro/wurfelspiel">Moisés Cachay's LilyPond encoding</a> (Apache 2.0).</li>
       <li>Audio: synthesised here from those notes. Princeton's recordings were not reused because the archive states no licence.</li>
+      <li>Notation: engraved in the browser by <a href="https://github.com/paulrosen/abcjs">abcjs</a> (MIT licence, Paul Rosen and Gregory Dyke) from ABC generated from the same notes.</li>
     </ul>
   </section>
 </main>
