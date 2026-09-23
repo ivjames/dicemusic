@@ -46,7 +46,7 @@ export function plan(bars) {
   bars.forEach((b, i) => {
     const fermata = i === 7 || i === 15;
     const dur = CHORD_SECONDS * (fermata ? FERMATA_FACTOR : 1);
-    steps.push({ bar: i, score: Math.floor(i / 2), key: `${i}:${b.cells.map((c) => c.join('.')).join('/')}:${dur.toFixed(3)}`, at, dur, voicing: b.voicing, cells: b.cells, fermata });
+    steps.push({ bar: i, score: Math.floor(i / 2), texture: 'chorale', key: `${i}:${b.cells.map((c) => c.join('.')).join('/')}:${dur.toFixed(3)}`, at, dur, voicing: b.voicing, cells: b.cells, fermata });
     at += dur + (i === 7 ? BREATH_SECONDS : 0);
   });
   return steps;
@@ -126,7 +126,10 @@ export const choraleGame = {
     return `${isPrelude(state) ? '16 bars of broken chords' : '8 bars'} in ${state.settings.key} major · ${motion} · about ${Math.round(last.at + last.dur)} seconds · ${chordList(state)}`;
   },
   plan: (state) => (isPrelude(state) ? preludePlan(state.bars) : plan(state.bars)),
-  render: (step, sampleRate, state) => (isPrelude(state) ? renderPrelude(step, sampleRate) : render(step, sampleRate)),
+  // The renderer is chosen from the step, not from the live settings: the controller's render
+  // queue can still hold steps of the previous texture when the selector changes, and a buffer
+  // is cached under the step's key, so it must be the sound that key names.
+  render: (step, sampleRate) => (step.texture === 'prelude' ? renderPrelude(step, sampleRate) : render(step, sampleRate)),
   positionText: (step, index, state) => (isPrelude(state) ? `Playing bar ${step.bar + 1}` : `Playing chord ${step.bar + 1} (bar ${Math.floor(step.bar / 2) + 1})`),
   abc: (state) => (isPrelude(state) ? preludeToAbc(state.bars, state.settings.key) : choraleToAbc(state.bars, state.settings.key)),
   scoreIndex,

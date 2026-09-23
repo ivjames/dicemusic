@@ -18,7 +18,7 @@ export function preludePlan(bars) {
   return bars.map((b, i) => {
     const cells = b.cells.length === 2 ? b.cells : [b.cells[0], b.cells[0]];
     const last = i === bars.length - 1;
-    return { bar: i, score: i, key: `p${i}:${cells.map((c) => c.join('.')).join('/')}${last ? ':held' : ''}`, at: i * PRELUDE_BAR_SECONDS, dur: PRELUDE_BAR_SECONDS, cells, last };
+    return { bar: i, score: i, texture: 'prelude', key: `p${i}:${cells.map((c) => c.join('.')).join('/')}${last ? ':held' : ''}`, at: i * PRELUDE_BAR_SECONDS, dur: PRELUDE_BAR_SECONDS, cells, last };
   });
 }
 

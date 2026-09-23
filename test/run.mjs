@@ -480,6 +480,16 @@ test('chorale settings: the link carries key, texture and motion and rejects unk
   assert.match(choraleGame.decodeSettings(new URLSearchParams('m=fast'), {}), /motion/);
   assert.match(choraleGame.decodeSettings(new URLSearchParams('k=H'), {}), /key/);
   assert.deepEqual([TEXTURES, MOTIONS], [['chorale', 'prelude'], ['passing', 'plain']]);
+  // the renderer follows the step, not the settings at render time: a queued step of the other
+  // texture must still produce its own sound under its own key
+  const bars = composeChorale(pairs, { key: 'C' });
+  const choraleStep = choralePlan(bars)[0], preludeStep = preludePlan(bars)[0];
+  assert.equal(choraleStep.texture, 'chorale'); assert.equal(preludeStep.texture, 'prelude');
+  const stateSaysPrelude = { settings: { key: 'C', texture: 'prelude', motion: 'passing' } };
+  const stateSaysChorale = { settings: { key: 'C', texture: 'chorale', motion: 'passing' } };
+  assert.equal(choraleGame.render(choraleStep, 8000, stateSaysPrelude).length, Math.round((choraleStep.dur + 0.3) * 8000));
+  assert.equal(choraleGame.render(preludeStep, 8000, stateSaysChorale).length, Math.round((preludeStep.dur + 0.5) * 8000));
+  assert.notEqual(choraleStep.key, preludeStep.key);
 });
 
 // ---------- run ----------
