@@ -207,7 +207,7 @@ function addSustained(out, { t, d, midi, vel }, sampleRate) {
       P.push({ c: Math.cos(w), s: Math.sin(w), x: 1, y: 0, a: amp * 0.5 });
     }
   }
-  const scale = vel * 0.32;
+  const scale = vel * 0.27;
   const relK = Math.exp(-1 / (0.05 * sampleRate));
   let rel = 1;
   for (let i = 0; i < n; i++) {

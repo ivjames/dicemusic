@@ -278,6 +278,53 @@ async function main() {
     await dark.close();
   });
 
+  await step('chorale page: roll, four-voice score, playback highlight, key change, link, WAV', async () => {
+    const cp = await ctx.newPage();
+    const cerrs = []; cp.on('pageerror', (e) => cerrs.push(e.message)); cp.on('console', (m) => { if (m.type() === 'error') cerrs.push(m.text()); });
+    await cp.goto(base + '/chorale/');
+    assert.equal(await cp.locator('#bars .bar').count(), 16);
+    await cp.click('#roll');
+    const bars = await cp.evaluate(() => window.__mozart.state.bars.map((b) => [b.sum, b.symbol, b.voicing]));
+    assert.equal(bars.length, 16);
+    assert.equal(bars[7][1], 'V'); assert.equal(bars[15][1], 'I');
+    assert.ok(bars.every((b) => b[2].length === 4 && b[2][0] <= b[2][1] && b[2][1] <= b[2][2] && b[2][2] <= b[2][3]));
+    await cp.waitForFunction(() => window.__mozart.scoreReady(), null, { timeout: 20000 });
+    for (const v of [0, 1, 2, 3]) assert.ok((await cp.locator(`#score .abcjs-v${v}`).count()) > 0, `voice ${v} engraved`);
+    assert.ok((await cp.locator('#score .abcjs-mm7').count()) > 0 && (await cp.locator('#score .abcjs-mm8').count()) === 0, 'eight bars');
+    // playback highlights chord cards and score bars in order
+    await cp.click('#play');
+    await cp.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
+    await cp.waitForFunction(() => document.querySelector('.bar[aria-current="true"]')?.dataset.bar === '1', null, { timeout: 8000 });
+    assert.ok((await cp.locator('#score .abcjs-mm0.is-current').count()) > 0);
+    await cp.click('#stop');
+    // key change re-voices and re-engraves; the link carries it
+    await cp.selectOption('#key', 'G');
+    await cp.waitForFunction(() => window.__mozart.state.settings.key === 'G' && document.querySelector('#score').dataset.abc.includes('K:G'));
+    const gBars = await cp.evaluate(() => window.__mozart.state.bars.map((b) => [b.sum, b.symbol]));
+    assert.deepEqual(gBars, bars.map((b) => [b[0], b[1]]), 'same dice, same chords');
+    assert.ok((await cp.url()).includes('k=G'));
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await cp.click('#share');
+    const link = await cp.locator('#share-url').inputValue();
+    const p2 = await ctx.newPage(); await p2.goto(link);
+    assert.deepEqual(await p2.evaluate(() => [window.__mozart.state.settings.key, window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|')]),
+      ['G', await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|'))]);
+    await p2.close();
+    // a bad key in the link is rejected gracefully
+    const p3 = await ctx.newPage(); await p3.goto(link.replace('k=G', 'k=Zz'));
+    assert.equal(await p3.locator('#status.is-error').count(), 1); assert.equal(await p3.locator('.die').count(), 0); await p3.close();
+    // the WAV is the same mixdown as playback
+    const [dl] = await Promise.all([cp.waitForEvent('download'), cp.click('#download')]);
+    const bytes = fs.readFileSync(await dl.path());
+    const expected = Buffer.from(await cp.evaluate(async () => Array.from(await window.__mozart.exportBytes())));
+    assert.ok(bytes.equals(expected));
+    assert.ok(dl.suggestedFilename().startsWith('chorale-dice-G-'));
+    const overflow = await cp.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+    assert.ok(!overflow);
+    assert.deepEqual(cerrs, []);
+    await cp.close();
+  });
+
   await step('no page errors during the run', async () => { assert.deepEqual(errors, []); });
 
   await browser.close();
