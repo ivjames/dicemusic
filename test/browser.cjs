@@ -303,22 +303,43 @@ async function main() {
     const gBars = await cp.evaluate(() => window.__mozart.state.bars.map((b) => [b.sum, b.symbol]));
     assert.deepEqual(gBars, bars.map((b) => [b[0], b[1]]), 'same dice, same chords');
     assert.ok((await cp.url()).includes('k=G'));
+    // broken-chord texture: sixteen bars on a grand staff, the highlight follows bars, the link carries it
+    await cp.selectOption('#texture', 'prelude');
+    await cp.waitForFunction(() => window.__mozart.state.settings.texture === 'prelude' && document.querySelector('#score').dataset.abc.includes('M:12/8') && window.__mozart.scoreReady(), null, { timeout: 20000 });
+    assert.ok((await cp.locator('#score .abcjs-mm15').count()) > 0 && (await cp.locator('#score .abcjs-mm16').count()) === 0, 'sixteen bars');
+    await cp.click('#play');
+    await cp.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
+    await cp.waitForFunction(() => document.querySelector('.bar[aria-current="true"]')?.dataset.bar === '1', null, { timeout: 8000 });
+    assert.ok((await cp.locator('#score .abcjs-mm1.is-current').count()) > 0, 'score bar 2 highlighted with chord 2');
+    await cp.click('#stop');
+    // plain motion strips the added notes and leaves the skeleton alone
+    const skeleton = await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|'));
+    assert.ok(await cp.evaluate(() => window.__mozart.state.bars.some((b) => b.cells.length === 2)), 'passing notes present by default');
+    await cp.selectOption('#motion', 'plain');
+    await cp.waitForFunction(() => window.__mozart.state.settings.motion === 'plain');
+    assert.ok(await cp.evaluate(() => window.__mozart.state.bars.every((b) => b.cells.length === 1)));
+    assert.equal(await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|')), skeleton);
+    assert.ok((await cp.url()).includes('t=prelude') && (await cp.url()).includes('m=plain'));
+    await cp.selectOption('#motion', 'passing');
+    await cp.waitForFunction(() => window.__mozart.state.settings.motion === 'passing' && !location.search.includes('m='));
     await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
     await cp.click('#share');
     const link = await cp.locator('#share-url').inputValue();
     const p2 = await ctx.newPage(); await p2.goto(link);
-    assert.deepEqual(await p2.evaluate(() => [window.__mozart.state.settings.key, window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|')]),
-      ['G', await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|'))]);
+    assert.deepEqual(await p2.evaluate(() => [window.__mozart.state.settings.key, window.__mozart.state.settings.texture, window.__mozart.state.bars.map((b) => b.cells.map((c) => c.join('.')).join('/')).join('|')]),
+      ['G', 'prelude', await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.cells.map((c) => c.join('.')).join('/')).join('|'))]);
     await p2.close();
-    // a bad key in the link is rejected gracefully
-    const p3 = await ctx.newPage(); await p3.goto(link.replace('k=G', 'k=Zz'));
-    assert.equal(await p3.locator('#status.is-error').count(), 1); assert.equal(await p3.locator('.die').count(), 0); await p3.close();
+    // a bad key or texture in the link is rejected gracefully
+    for (const bad of [link.replace('k=G', 'k=Zz'), link.replace('t=prelude', 't=waltz')]) {
+      const p3 = await ctx.newPage(); await p3.goto(bad);
+      assert.equal(await p3.locator('#status.is-error').count(), 1, bad); assert.equal(await p3.locator('.die').count(), 0); await p3.close();
+    }
     // the WAV is the same mixdown as playback
     const [dl] = await Promise.all([cp.waitForEvent('download'), cp.click('#download')]);
     const bytes = fs.readFileSync(await dl.path());
     const expected = Buffer.from(await cp.evaluate(async () => Array.from(await window.__mozart.exportBytes())));
     assert.ok(bytes.equals(expected));
-    assert.ok(dl.suggestedFilename().startsWith('chorale-dice-G-'));
+    assert.ok(dl.suggestedFilename().startsWith('chorale-dice-G-prelude-'), dl.suggestedFilename());
     const overflow = await cp.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
     assert.ok(!overflow);
     assert.deepEqual(cerrs, []);

@@ -164,8 +164,9 @@ export function createApp(game) {
       add_classes: true, foregroundColor: 'currentColor', responsive: 'resize', staffwidth: width,
       paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0,
     };
-    const perLine = game.measuresPerLine ? game.measuresPerLine(width) : (width >= 620 ? 6 : width >= 440 ? 4 : 3);
-    if (width < (game.wideWidth || 860)) opts.wrap = { minSpacing: 1.4, maxSpacing: 2.6, preferredMeasuresPerLine: perLine };
+    const perLine = game.measuresPerLine ? game.measuresPerLine(width, state) : (width >= 620 ? 6 : width >= 440 ? 4 : 3);
+    const wide = typeof game.wideWidth === 'function' ? game.wideWidth(state) : (game.wideWidth || 860);
+    if (width < wide) opts.wrap = { minSpacing: 1.4, maxSpacing: 2.6, preferredMeasuresPerLine: perLine };
     ABCJS.renderAbc(scoreEl, abc, opts);
     scoreEl.dataset.width = String(width);
   }

@@ -50,6 +50,9 @@ as a phantom second build.)
 
 - Two pages: the minuet at `/` and **Chorale Dice** at `/chorale/`, both built on
   `js/ui.js`; a game is a config object (see `js/app.js` and `js/chorale.js`).
+  The chorale's pipeline is harmony → voicing → elaboration (cells) → texture; the
+  textures (`chorale`, `prelude`) and motion (`passing`, `plain`) are page settings
+  carried in the link, and neither changes the chords or the voice leading.
 
 - The app is a set of ES modules under `js/` loaded by `index.html`; the score
   data, the sources it was taken from, the tests and the known limits are in
