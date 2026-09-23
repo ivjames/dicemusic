@@ -1,7 +1,7 @@
 // Typesetting: turn the composed minuet into ABC notation for abcjs to engrave.
 // The note data is the same MEASURES table the synthesiser plays from, so what is
 // drawn is exactly what is heard.
-import { MEASURES, UNITS_PER_BAR } from './score.js';
+import { MEASURES, UNITS_PER_BAR } from './score.js?v=dev';
 
 const LETTERS = ['C', 'C', 'D', 'D', 'E', 'F', 'F', 'G', 'G', 'A', 'A', 'B'];
 const SHARP = [false, true, false, true, false, false, true, false, true, false, true, false];

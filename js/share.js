@@ -1,7 +1,7 @@
 // Shareable-URL codec. The URL stores the raw dice, never the derived totals or measures,
 // so a link always reproduces the exact music: ?d=<32 digits 1-6>&l=<locks as 16 bits, hex>&r=1
-import { BARS } from './table.js';
-import { isPair } from './dice.js';
+import { BARS } from './table.js?v=dev';
+import { isPair } from './dice.js?v=dev';
 
 export function encodeState({ pairs, locks = [], repeats = false }) {
   if (!Array.isArray(pairs) || pairs.length !== BARS || !pairs.every(isPair)) {

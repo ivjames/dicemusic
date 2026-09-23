@@ -204,6 +204,20 @@ test('notation: the tune has two staves, the volta over bar 8, and maps plan ste
   assert.throws(() => minuetToAbc([1, 2, 3]), RangeError);
 });
 
+// ---------- cache busting ----------
+test('every module import and asset URL carries the ?v= stamp the deploy rewrites', async () => {
+  const fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.ok(!html.includes('importmap'), 'no import map: the scheme must not depend on one');
+  assert.ok(/src="js\/app\.js\?v=dev"/.test(html) && /href="style\.css\?v=dev"/.test(html) && /abcjs-basic-min\.js\?v=dev/.test(html));
+  assert.ok(/^  const BUILD = 'dev';$/m.test(html), 'BUILD constant at the indentation the deploy stamp expects');
+  const dir = new URL('../js/', import.meta.url);
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.js'))) {
+    const src = fs.readFileSync(new URL(f, dir), 'utf8');
+    for (const m of src.matchAll(/from\s+'(\.\/[^']+)'/g)) assert.ok(m[1].endsWith('.js?v=dev'), `${f}: ${m[1]}`);
+  }
+});
+
 // ---------- run ----------
 let failed = 0;
 for (const t of tests) {

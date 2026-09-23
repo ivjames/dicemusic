@@ -1,7 +1,7 @@
 // A small additive keyboard voice and the timing model shared by playback and WAV export.
 // Everything here is plain arithmetic on Float32Arrays, so the same code runs in the page,
 // in an AudioContext of any sample rate, and in Node for tests.
-import { MEASURES, UNITS_PER_BAR } from './score.js';
+import { MEASURES, UNITS_PER_BAR } from './score.js?v=dev';
 
 export const EIGHTH_SECONDS = 60 / 116;          // ♪ = 116, a brisk 3/8 Schleifer
 export const BAR_SECONDS = 3 * EIGHTH_SECONDS;   // 1.552 s
