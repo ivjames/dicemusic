@@ -314,23 +314,38 @@ async function main() {
     await cp.click('#stop');
     // plain motion strips the added notes and leaves the skeleton alone
     const skeleton = await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|'));
-    assert.ok(await cp.evaluate(() => window.__mozart.state.bars.some((b) => b.cells.length === 2)), 'passing notes present by default');
+    assert.ok(await cp.evaluate(() => window.__mozart.state.bars.some((b) => b.moving && b.lines.some((l) => l.length === 2))), 'passing notes present by default');
     await cp.selectOption('#motion', 'plain');
     await cp.waitForFunction(() => window.__mozart.state.settings.motion === 'plain');
-    assert.ok(await cp.evaluate(() => window.__mozart.state.bars.every((b) => b.cells.length === 1)));
+    assert.ok(await cp.evaluate(() => window.__mozart.state.bars.every((b) => !b.moving && b.lines.every((l) => l.length === 1))));
     assert.equal(await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.voicing.join('.')).join('|')), skeleton);
     assert.ok((await cp.url()).includes('t=prelude') && (await cp.url()).includes('m=plain'));
+    await cp.selectOption('#motion', 'lively');
+    await cp.waitForFunction(() => window.__mozart.state.settings.motion === 'lively' && location.search.includes('m=lively'));
+    assert.ok(await cp.evaluate(() => window.__mozart.state.bars.some((b) => b.lines.some((l) => l.some(([, u]) => u === 1)))), 'lively writes quavers');
+    // the tempo slider re-plans at the new beat and rides in the link; the instrument select changes every step's voice
+    const durBefore = await cp.evaluate(() => window.__mozart.state.plan[0].dur);
+    await cp.evaluate(() => { const t = document.querySelector('#tempo'); t.value = '96'; t.dispatchEvent(new Event('input', { bubbles: true })); t.dispatchEvent(new Event('change', { bubbles: true })); });
+    await cp.waitForFunction(() => window.__mozart.state.settings.tempo === 96 && location.search.includes('q=96'));
+    assert.equal(await cp.locator('#tempo-out').innerText(), '96');
+    assert.ok(Math.abs(await cp.evaluate(() => window.__mozart.state.plan[0].dur) - durBefore * 72 / 96) < 1e-9, 'a bar is shorter at 96');
+    await cp.selectOption('#instrument', 'organ');
+    await cp.waitForFunction(() => window.__mozart.state.settings.instrument === 'organ' && location.search.includes('i=organ'));
+    assert.ok(await cp.evaluate(() => window.__mozart.state.plan.every((s) => s.instrument === 'organ' && s.key.endsWith(':organ'))));
+    assert.ok(await cp.evaluate(() => !document.querySelector('#score-section #summary').hidden && document.querySelector('#summary').textContent.includes('organ at 96')), 'the summary sits with the score');
+    await cp.selectOption('#instrument', 'auto');
     await cp.selectOption('#motion', 'passing');
-    await cp.waitForFunction(() => window.__mozart.state.settings.motion === 'passing' && !location.search.includes('m='));
+    await cp.waitForFunction(() => window.__mozart.state.settings.motion === 'passing' && !location.search.includes('m=') && !location.search.includes('i='));
     await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
     await cp.click('#share');
     const link = await cp.locator('#share-url').inputValue();
     const p2 = await ctx.newPage(); await p2.goto(link);
-    assert.deepEqual(await p2.evaluate(() => [window.__mozart.state.settings.key, window.__mozart.state.settings.texture, window.__mozart.state.bars.map((b) => b.cells.map((c) => c.join('.')).join('/')).join('|')]),
-      ['G', 'prelude', await cp.evaluate(() => window.__mozart.state.bars.map((b) => b.cells.map((c) => c.join('.')).join('/')).join('|'))]);
+    assert.deepEqual(await p2.evaluate(() => [window.__mozart.state.settings.key, window.__mozart.state.settings.texture, window.__mozart.state.settings.tempo, JSON.stringify(window.__mozart.state.bars.map((b) => b.lines))]),
+      ['G', 'prelude', 96, await cp.evaluate(() => JSON.stringify(window.__mozart.state.bars.map((b) => b.lines)))]);
+    assert.equal(await p2.locator('#tempo').inputValue(), '96');
     await p2.close();
     // a bad key or texture in the link is rejected gracefully
-    for (const bad of [link.replace('k=G', 'k=Zz'), link.replace('t=prelude', 't=waltz')]) {
+    for (const bad of [link.replace('k=G', 'k=Zz'), link.replace('t=prelude', 't=waltz'), link.replace('q=96', 'q=999'), link + '&i=kazoo']) {
       const p3 = await ctx.newPage(); await p3.goto(bad);
       assert.equal(await p3.locator('#status.is-error').count(), 1, bad); assert.equal(await p3.locator('.die').count(), 0); await p3.close();
     }
@@ -342,6 +357,14 @@ async function main() {
     assert.ok(dl.suggestedFilename().startsWith('chorale-dice-G-prelude-'), dl.suggestedFilename());
     const overflow = await cp.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
     assert.ok(!overflow);
+    // layout: blurb and controls share the top; the score comes before the throws
+    assert.ok(await cp.evaluate(() => {
+      const top = document.querySelector('.top');
+      const order = [...document.querySelectorAll('main > *')].map((el) => el.className || el.id);
+      return top && top.querySelector('.masthead') && top.querySelector('.controls') && order.indexOf('score-section') < order.indexOf('bars-section');
+    }));
+    const card = await cp.locator('#bars .bar').first().boundingBox();
+    assert.ok(card.height < 90, `card height ${card.height}`);
     assert.deepEqual(cerrs, []);
     await cp.close();
   });
