@@ -205,6 +205,12 @@ cmd_deploy() {
     sed -i "s/^  const BUILD = '[^']*';/  const BUILD = '$after';/" index.html
     log "stamped build $after into index.html"
   fi
+  # And onto every ?v= asset URL (stylesheet, import map, module script, engraver), so
+  # browsers that cache scripts heuristically fetch the ones this commit ships.
+  if grep -q '?v=' index.html 2>/dev/null; then
+    sed -i "s/?v=[A-Za-z0-9]*/?v=$after/g" index.html
+    log "stamped build $after onto ?v= asset URLs"
+  fi
   log "Done. (Static files serve straight from disk — no reload needed.)"
 }
 

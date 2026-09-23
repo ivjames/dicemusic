@@ -71,5 +71,6 @@ base URL is given. Screenshots land in `test/shots/` (gitignored). Set `NODE_PAT
 
 - The trio (one die, measures T1–T96) is not implemented.
 - The tone is a synthesised struck string, not a sampled fortepiano.
-- Modules under `js/` are cached heuristically by browsers after a deploy; only `index.html`
-  is served `no-cache`. See `DEPLOY.md` for the droplet side.
+- Only `index.html` is served `no-cache`; the modules and stylesheet are cached heuristically.
+  Their URLs carry `?v=<commit>` via an import map, stamped by `dicemusic deploy`, so a deploy
+  is picked up on the next ordinary visit. Locally the stamp reads `dev`.
