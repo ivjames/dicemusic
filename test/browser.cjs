@@ -166,9 +166,9 @@ async function main() {
     assert.ok(dl.suggestedFilename().endsWith('.wav'));
   });
 
-  await step('"Play with repeats" doubles the plan and is carried in the link', async () => {
+  await step('"Play with repeats" extends the plan to 24 bars and is carried in the link', async () => {
     await page.check('#repeats');
-    assert.equal(await page.evaluate(() => window.__mozart.state.plan.length), 32);
+    assert.equal(await page.evaluate(() => window.__mozart.state.plan.length), 24);
     assert.ok((await page.url()).includes('r=1'));
     await page.uncheck('#repeats');
   });
@@ -184,11 +184,11 @@ async function main() {
     await page.waitForFunction(() => window.__mozart.player.state !== 'idle' || document.querySelector('#status.is-error'), null, { timeout: 15000 }).catch(() => {});
     assert.equal(await page.locator('#status.is-error').count(), 0, await page.locator('#status').innerText());
     const plan = await page.evaluate(() => window.__mozart.state.plan.length);
-    assert.equal(plan, 32);
-    // Whatever the timing, a Play now must work with the 32-step plan.
+    assert.equal(plan, 24);
+    // Whatever the timing, a Play now must work with the 24-step plan.
     if (await page.evaluate(() => window.__mozart.player.state) === 'idle') await page.click('#play');
     await page.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
-    assert.equal(await page.evaluate(() => window.__mozart.player.plan.length), 32);
+    assert.equal(await page.evaluate(() => window.__mozart.player.plan.length), 24);
     await page.click('#stop');
     await page.uncheck('#repeats');
   });
@@ -216,6 +216,34 @@ async function main() {
     await page.click('#play');
     await page.waitForFunction(() => window.__mozart.player.state === 'playing', null, { timeout: 15000 });
     await page.click('#stop');
+  });
+
+  await step('the score is engraved from the rolled measures, follows playback, and updates on a reroll', async () => {
+    await page.waitForFunction(() => window.__mozart.scoreReady(), null, { timeout: 20000 });
+    assert.ok(!(await page.locator('#score-section').isHidden()));
+    // 17 engraved measures: 0..6, the two endings 7 and 8, then 9..16
+    for (const mm of [0, 7, 8, 16]) assert.ok((await page.locator(`#score .abcjs-mm${mm}`).count()) > 0, `measure ${mm} drawn`);
+    assert.equal(await page.locator('#score .abcjs-mm17').count(), 0);
+    assert.equal(await page.locator('#score .abcjs-ending').count() >= 2, true, 'volta brackets');
+    // Highlight follows the playhead: bar 1 -> measure 0; after bar 8 without repeats -> measure 8 then 9.
+    await page.click('#play');
+    await page.waitForFunction(() => window.__mozart.player.state === 'playing');
+    await page.waitForFunction(() => document.querySelector('#score .abcjs-mm0.is-current'), null, { timeout: 5000 });
+    await page.waitForFunction(() => document.querySelector('#score .abcjs-mm1.is-current'), null, { timeout: 5000 });
+    assert.equal(await page.locator('#score .abcjs-mm0.is-current').count(), 0, 'previous measure un-highlighted');
+    await page.click('#stop');
+    assert.equal(await page.locator('#score .is-current').count(), 0);
+    // A reroll of bar 12 changes engraved measure 12 (bar 12 -> mm 12) when the measure number changes.
+    const before = await page.evaluate(() => window.__mozart.state.bars[11].measure);
+    let after = before; let tries = 0;
+    while (after === before && tries++ < 12) { await cards().nth(11).locator('.reroll').click(); after = await page.evaluate(() => window.__mozart.state.bars[11].measure); }
+    await page.waitForFunction((m) => document.querySelector('#score').dataset.abc && window.__mozart.scoreReady() && document.querySelector('#score').getAttribute('aria-label').includes(String(m)), after, { timeout: 20000 });
+    assert.ok((await page.locator('#score .abcjs-mm12').count()) > 0);
+    // Saving the score yields an SVG file.
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#save-score')]);
+    const svg = fs.readFileSync(await dl.path(), 'utf8');
+    assert.ok(svg.includes('<svg') && svg.includes('xmlns="http://www.w3.org/2000/svg"') && !svg.includes('currentColor'));
+    assert.ok(dl.suggestedFilename().endsWith('.svg'));
   });
 
   await step('keyboard: lock and reroll buttons are reachable and labelled; Space toggles play', async () => {

@@ -129,8 +129,9 @@ export function bufferKey(measureId, ending) {
 
 /**
  * The order in which bars are heard. Without repeats: bars 1–16 once, bar 8 with the
- * ending that leads on to bar 9. With repeats: ||: 1–8 :||: 9–16 :|| as the print asks,
- * bar 8 taking its first ending the first time round.
+ * ending that leads on to bar 9. With repeats: ||: 1–8 :|| 9–16, as the print asks and as
+ * the Humdrum edition expands it ([A,A1,A,A2,B]): the first half twice, bar 8 taking its
+ * first ending the first time round, then the second half once.
  * `measures` is the 16 measure numbers. Returns [{ bar, measureId, ending }].
  */
 export function playbackPlan(measures, repeats = false) {
@@ -143,7 +144,7 @@ export function playbackPlan(measures, repeats = false) {
   }
   for (let b = 0; b < 8; b++) plan.push(step(b, 'first'));
   for (let b = 0; b < 8; b++) plan.push(step(b, 'second'));
-  for (let pass = 0; pass < 2; pass++) for (let b = 8; b < 16; b++) plan.push(step(b, 'second'));
+  for (let b = 8; b < 16; b++) plan.push(step(b, 'second'));
   return plan;
 }
 

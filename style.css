@@ -122,3 +122,14 @@ main { max-width: 60rem; margin: 0 auto; }
 }
 
 .btn[aria-busy="true"] { cursor: progress; }
+
+.score-section { max-width: 60rem; margin: 28px auto 0; }
+.score-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.score-head h2 { margin: 0; }
+.btn-small { min-height: 40px; font-size: .9rem; padding: 0 14px; }
+.score { margin-top: 10px; padding: 14px 12px; background: var(--paper-2); border: 1px solid var(--line); border-radius: 14px; color: var(--ink); overflow-x: auto; }
+.score svg { display: block; max-width: 100%; height: auto; }
+.score .is-current { fill: var(--accent); stroke: var(--accent); }
+.score .abcjs-staff.is-current, .score .abcjs-bar.is-current { fill: var(--ink); stroke: var(--ink); }
+.score-fallback { margin: 0; color: var(--muted); }
+.score-note { margin: 10px 4px 0; color: var(--muted); font-size: .9rem; }

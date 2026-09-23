@@ -27,6 +27,10 @@ WAV, and the exact composition shared by URL.
   `k × barSamples`, so there are no gaps; pause remembers a sample position and resume
   reschedules from it; a context suspended by the system is surfaced as a pause.
 - `js/wav.js` — 16-bit PCM mono WAV encode/decode.
+- `js/notation.js` — the composed minuet as ABC notation (two staves, the printed repeat with
+  both endings of bar 8), engraved in the page by the vendored `js/vendor/abcjs-basic-min.js`
+  (abcjs 6.7.1, MIT). The current measure is highlighted during playback and the score can be
+  saved as SVG.
 - `js/app.js` — UI wiring. Any edit to the composition during playback stops it and resets
   the playhead first. `window.__mozart` is a hook for the browser tests.
 
@@ -47,7 +51,9 @@ The three were parsed to a common event form and compared measure by measure. Th
 and each of those was also read against the Simrock print (IMSLP #20432, pp. 3–6). Bar 132,
 where all three differed, was taken from the print: `[e c] | [d B] [B G] | G`. The eleven
 bar-8 measures carry both printed endings; straight-through playback uses the second (the
-one that leads on to bar 9), "Play with repeats" uses the first the first time round. The
+one that leads on to bar 9). "Play with repeats" follows the print and the Humdrum edition's
+expansion `[A,A1,A,A2,B]`: the first half twice with the first ending the first time round,
+then the second half once. The
 generator script and the comparison tooling are not in this repo; `js/score.js` is the output
 and records its provenance in its header.
 
