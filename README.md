@@ -42,15 +42,23 @@ WAV, and the exact composition shared by URL.
   ending on a half cadence and a perfect authentic cadence; a dynamic-programming voice-leading
   engine then writes SATB (ranges, spacing, doublings, no parallel or hidden fifths and
   octaves, resolving leading tones, sevenths and chromatic tones). An elaboration pass
-  (`chorale-motion.js`) then adds unaccented passing notes, skipped chord tones and soprano
-  neighbours on the second half of a chord wherever they make no parallels, crossing or
-  unison, without touching the chords or the voice leading; each chord becomes one or two
-  *cells*. Two textures render the cells: four sustained voices on two staves (one chord per
-  minim, fermatas at the cadences), or *broken chords* (`chorale-prelude.js`): each cell as a
-  bass–tenor–alto–soprano–alto–tenor figure in quavers, one chord per 12/8 bar, played by the
-  minuet's struck-string voice and engraved on a grand staff. Key, texture and motion ride in
-  the link as `k`, `t` and `m`. Seven major keys. Original music, not a historical game, and
-  the page says so.
+  (`chorale-motion.js`) then adds movement on the second half of a chord wherever it makes no
+  parallels, crossing or unison, without touching the chords or the voice leading: each voice's
+  part in a chord becomes a *line* of [pitch, quavers]. Level `passing` adds crotchet passing
+  notes, skipped chord tones and soprano neighbours; `lively` adds quaver runs through a
+  fourth or fifth, soprano turns and inner-voice neighbours, three voices at a time. Two
+  textures render the lines: four voices on two staves (one chord per minim, fermatas at the
+  cadences), or *broken chords* (`chorale-prelude.js`): a bass–tenor–alto–soprano–alto–tenor
+  figure in quavers per half chord, one chord per 12/8 bar, on a grand staff. Five instruments
+  (`INSTRUMENTS` in `synth.js`: piano and harp struck, choir, organ and strings sustained) and a
+  tempo slider (48–132 beats a minute; a crotchet for four voices, a dotted crotchet for broken
+  chords) apply to either texture; "to suit the texture" picks the choir or the piano. A plan
+  step carries texture, instrument, tempo and its lines, so its sound never depends on the
+  live settings. Key, texture, motion, tempo and instrument ride in the link as `k`, `t`, `m`,
+  `q` and `i`. Seven major keys. Original music, not a historical game, and the page says so.
+- Layout (both pages): the blurb and the controls share the top (side by side from 900 px),
+  the score comes next with its summary line, and the sixteen throws follow as compact cards
+  (position, faces and total, reroll and lock as icon buttons, then what the throw chose).
 
 ## Where the music comes from
 

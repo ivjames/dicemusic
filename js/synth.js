@@ -49,8 +49,22 @@ function freqOf(midi) {
   return 440 * 2 ** ((midi - 69) / 12);
 }
 
-/** Add one struck-string note into `out` (in place). */
-function addNote(out, { t, d, midi, vel }, sampleRate) {
+// ---------- instruments ----------
+// Two families share the additive engine: struck strings (a plucked or hammered note that
+// decays, quicker the higher it is) and sustained tones (held while the key is down, with a
+// soft attack and release). Each instrument is a parameter set; `gain` is chosen so the
+// loudest chord peaks under 0.9 (checked in test/run.mjs).
+export const INSTRUMENTS = {
+  piano:   { family: 'struck',    label: 'Piano',   partials: 8, lowpass: 3200, rolloff: 1.35, upper: 0.75, B: 0.00012, tauScale: 1,    gain: 0.41 },
+  harp:    { family: 'struck',    label: 'Harp',    partials: 6, lowpass: 5200, rolloff: 1.9,  upper: 0.55, B: 0.00004, tauScale: 0.55, gain: 0.5 },
+  choir:   { family: 'sustained', label: 'Choir',   detune: [-4, 4], partials: 7, lowpass: 1800, rolloff: 1.3, upper: 0.6, attack: 0.045, release: 0.16, gain: 0.27 },
+  organ:   { family: 'sustained', label: 'Organ',   detune: [0], amps: [1, 0.42, 0.3, 0.34, 0.05, 0.16, 0.03, 0.12], attack: 0.012, release: 0.07, gain: 0.17 },
+  strings: { family: 'sustained', label: 'Strings', detune: [-8, -3, 3, 8], partials: 9, lowpass: 3000, rolloff: 1.15, upper: 0.7, attack: 0.16, release: 0.25, gain: 0.3 },
+};
+export const INSTRUMENT_NAMES = Object.keys(INSTRUMENTS);
+
+/** Add one struck-string note into `out` (in place); the instrument's gain is applied by the caller. */
+function addNote(out, { t, d, midi, vel }, sampleRate, I = INSTRUMENTS.piano) {
   const f0 = freqOf(midi);
   const start = Math.round(t * sampleRate);
   const gap = Math.min(0.04, d * 0.15);              // a hair of daylight between notes
@@ -59,18 +73,18 @@ function addNote(out, { t, d, midi, vel }, sampleRate) {
   const n = Math.min(out.length - start, holdSamples + releaseSamples);
   if (n <= 0) return;
   // Decay gets quicker with pitch, like a real string.
-  const tau = Math.min(1.8, Math.max(0.22, 1.8 * 2 ** (-(midi - 48) / 16)));
+  const tau = I.tauScale * Math.min(1.8, Math.max(0.22, 1.8 * 2 ** (-(midi - 48) / 16)));
   const attackSamples = Math.max(1, Math.round(0.0025 * sampleRate));
   const releaseK = Math.exp(-1 / (0.03 * sampleRate));
   const nyq = sampleRate * 0.45;
-  const B = 0.00012;                                   // slight inharmonicity
+  const B = I.B;                                       // slight inharmonicity
   // Partials as rotating phasors: no sin() in the inner loop.
   const P = [];
-  for (let k = 1; k <= 8; k++) {
+  for (let k = 1; k <= I.partials; k++) {
     const f = f0 * k * Math.sqrt(1 + B * k * k);
     if (f >= nyq) break;
-    const lowpass = 1 / (1 + (f / 3200) ** 2);
-    const amp = (1 / k ** 1.35) * lowpass * (k === 1 ? 1 : 0.75);
+    const lowpass = 1 / (1 + (f / I.lowpass) ** 2);
+    const amp = (1 / k ** I.rolloff) * lowpass * (k === 1 ? 1 : I.upper);
     if (amp < 1e-4) continue;
     const w = (2 * Math.PI * f) / sampleRate;
     P.push({ c: Math.cos(w), s: Math.sin(w), x: 1, y: 0, a: amp, g: Math.exp(-1 / ((tau / (1 + 0.4 * (k - 1))) * sampleRate)) });
@@ -181,34 +195,34 @@ export function mixdown(plan, buffers, sampleRate) {
   return out;
 }
 
-// ---------- a second instrument: sustained voices for the chorale ----------
+// ---------- the sustained family ----------
 
-/** Add one sustained, lightly chorused voice note into `out` (in place). */
-function addSustained(out, { t, d, midi, vel }, sampleRate) {
+/** Add one sustained note into `out` (in place); the instrument's gain is applied by the caller. */
+function addSustained(out, { t, d, midi, vel }, sampleRate, I = INSTRUMENTS.choir) {
   const f0 = freqOf(midi);
   const start = Math.round(t * sampleRate);
   const holdSamples = Math.max(1, Math.round(d * sampleRate));
-  const attackSamples = Math.round(0.045 * sampleRate);
-  const releaseSamples = Math.round(0.16 * sampleRate);
+  const attackSamples = Math.round(I.attack * sampleRate);
+  const releaseSamples = Math.round(I.release * sampleRate);
   const n = Math.min(out.length - start, holdSamples + releaseSamples);
   if (n <= 0) return;
   const nyq = sampleRate * 0.45;
   const P = [];
-  // Two slightly detuned copies of each partial give a choir-like breadth.
-  for (const cents of [-4, 4]) {
+  // Slightly detuned copies of each partial give a choir- or string-like breadth.
+  const count = I.amps ? I.amps.length : I.partials;
+  for (const cents of I.detune) {
     const f1 = f0 * 2 ** (cents / 1200);
-    for (let k = 1; k <= 7; k++) {
+    for (let k = 1; k <= count; k++) {
       const f = f1 * k;
       if (f >= nyq) break;
-      const lowpass = 1 / (1 + (f / 1800) ** 2);
-      const amp = (k === 1 ? 1 : 0.6 / k ** 1.3) * lowpass;
+      const amp = I.amps ? I.amps[k - 1] : (k === 1 ? 1 : I.upper / k ** I.rolloff) / (1 + (f / I.lowpass) ** 2);
       if (amp < 1e-4) continue;
       const w = (2 * Math.PI * f) / sampleRate;
-      P.push({ c: Math.cos(w), s: Math.sin(w), x: 1, y: 0, a: amp * 0.5 });
+      P.push({ c: Math.cos(w), s: Math.sin(w), x: 1, y: 0, a: amp / I.detune.length });
     }
   }
-  const scale = vel * 0.27;
-  const relK = Math.exp(-1 / (0.05 * sampleRate));
+  const scale = vel;
+  const relK = Math.exp(-1 / (Math.max(0.02, I.release * 0.3) * sampleRate));
   let rel = 1;
   for (let i = 0; i < n; i++) {
     let v = 0;
@@ -226,25 +240,26 @@ function addSustained(out, { t, d, midi, vel }, sampleRate) {
 
 export const CHORALE_TAIL_SECONDS = 0.3;
 
+/** Buffer tail an instrument needs after its last note ends. */
+export function tailSeconds(instrument) { return INSTRUMENTS[instrument].family === 'struck' ? TAIL_SECONDS : CHORALE_TAIL_SECONDS; }
+
 /**
- * Render a chord for the sustained instrument: `notes` are [{ midi, vel }] all starting at 0
- * and holding for `seconds`; the buffer is `seconds` plus a short tail for the release.
+ * Render timed notes [{ t, d, midi, vel }] (seconds) with the named instrument into a buffer
+ * of `seconds` plus the instrument's tail, at its gain.
+ */
+export function renderNotes(events, seconds, sampleRate, instrument = 'choir') {
+  const I = INSTRUMENTS[instrument];
+  if (!I) throw new RangeError(`unknown instrument ${instrument}`);
+  const out = new Float32Array(Math.round((seconds + tailSeconds(instrument)) * sampleRate));
+  for (const ev of events) (I.family === 'struck' ? addNote : addSustained)(out, ev, sampleRate, I);
+  for (let i = 0; i < out.length; i++) out[i] *= I.gain;
+  return out;
+}
+
+/**
+ * Render a chord for the choir: `notes` are [{ midi, vel }] all starting at 0 and holding
+ * for `seconds`; the buffer is `seconds` plus a short tail for the release.
  */
 export function renderChord(notes, seconds, sampleRate) {
-  return renderSustainedNotes(notes.map((nt) => ({ t: 0, d: Math.max(0.05, seconds - 0.07), midi: nt.midi, vel: nt.vel })), seconds, sampleRate);
-}
-
-/** Render timed notes [{ t, d, midi, vel }] (seconds) for the sustained instrument into a buffer of `seconds` plus its tail. */
-export function renderSustainedNotes(events, seconds, sampleRate) {
-  const out = new Float32Array(Math.round((seconds + CHORALE_TAIL_SECONDS) * sampleRate));
-  for (const ev of events) addSustained(out, ev, sampleRate);
-  return out;
-}
-
-/** Render timed notes [{ t, d, midi, vel }] (seconds) for the struck-string voice into a buffer of `seconds` plus its tail, at master gain. */
-export function renderStruckNotes(events, seconds, sampleRate) {
-  const out = new Float32Array(Math.round((seconds + TAIL_SECONDS) * sampleRate));
-  for (const ev of events) addNote(out, ev, sampleRate);
-  for (let i = 0; i < out.length; i++) out[i] *= MASTER_GAIN;
-  return out;
+  return renderNotes(notes.map((nt) => ({ t: 0, d: Math.max(0.05, seconds - 0.07), midi: nt.midi, vel: nt.vel })), seconds, sampleRate, 'choir');
 }

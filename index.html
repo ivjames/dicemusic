@@ -11,14 +11,15 @@
 </head>
 <body>
 <a class="skip" href="#controls">Skip to controls</a>
-<header class="masthead">
-  <p class="kicker">Musikalisches Würfelspiel · K. 516f</p>
-  <h1>Musical Dice Game</h1>
-  <p class="lede">A musical dice game commonly attributed to Mozart. Roll two dice for each of sixteen bars, look each total up in the published table, and hear the minuet that falls out.</p>
-  <p class="sibling">Also here: <a href="chorale/">Chorale Dice</a>, the same throws writing a four-part chorale.</p>
-</header>
-
 <main>
+<div class="top">
+  <header class="masthead">
+    <p class="kicker">Musikalisches Würfelspiel · K. 516f</p>
+    <h1>Musical Dice Game</h1>
+    <p class="lede">A musical dice game commonly attributed to Mozart. Roll two dice for each of sixteen bars, look each total up in the published table, and hear the minuet that falls out.</p>
+    <p class="sibling">Also here: <a href="chorale/">Chorale Dice</a>, the same throws writing a four-part chorale.</p>
+  </header>
+
   <section class="controls" id="controls" aria-label="Composition controls">
     <div class="row row-roll">
       <button type="button" id="roll" class="btn btn-primary">Roll &amp; Compose</button>
@@ -27,22 +28,17 @@
     <div class="row row-transport" role="group" aria-label="Playback">
       <button type="button" id="play" class="btn btn-play" aria-label="Play the minuet" disabled>Play</button>
       <button type="button" id="stop" class="btn" aria-label="Stop playback" disabled>Stop</button>
-      <label class="check"><input type="checkbox" id="repeats"> <span>Play with repeats</span></label>
-    </div>
-    <div class="row row-export">
       <button type="button" id="download" class="btn" disabled>Download WAV</button>
       <button type="button" id="share" class="btn" disabled>Copy link</button>
+    </div>
+    <div class="row settings-row">
+      <label class="check"><input type="checkbox" id="repeats"> <span>Play with repeats</span></label>
     </div>
     <p id="status" class="status" role="status" aria-live="polite"></p>
     <p id="position" class="position" aria-live="polite"></p>
     <input id="share-url" class="share-url" type="text" readonly aria-label="Shareable link" hidden>
   </section>
-
-  <section aria-labelledby="bars-heading">
-    <h2 id="bars-heading" class="visually-hidden">The sixteen bars</h2>
-    <ol id="bars" class="bars" aria-label="The sixteen bars of the minuet"></ol>
-    <p id="summary" class="summary" hidden></p>
-  </section>
+</div>
 
   <section class="score-section" id="score-section" aria-labelledby="score-heading" hidden>
     <div class="score-head">
@@ -50,7 +46,13 @@
       <button type="button" id="save-score" class="btn btn-small" disabled>Save score (SVG)</button>
     </div>
     <div id="score" class="score" role="img" aria-label="Score of the minuet" data-engraver="js/vendor/abcjs-basic-min.js?v=dev"></div>
+    <p id="summary" class="summary" hidden></p>
     <p class="score-note">Engraved from the same notes that are played: two staves, the first half repeated with both endings of bar 8, the second half once, as printed.</p>
+  </section>
+
+  <section class="bars-section" aria-labelledby="bars-heading">
+    <h2 id="bars-heading">The throws</h2>
+    <ol id="bars" class="bars" aria-label="The sixteen bars of the minuet"></ol>
   </section>
 
   <section class="prose" id="how" aria-labelledby="how-heading">

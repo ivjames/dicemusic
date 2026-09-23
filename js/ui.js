@@ -56,16 +56,20 @@ export function createApp(game) {
       const li = document.createElement('li');
       li.className = 'bar';
       li.dataset.bar = String(i);
+      // One compact card: the position, the two faces and their total, then reroll and lock as
+      // icon buttons; the text below names what the throw chose. Full wording is in the labels.
       li.innerHTML = `
         <div class="bar-head">
-          <span class="bar-num">${cap(noun)} ${i + 1}</span>
+          <span class="bar-num" aria-hidden="true">${i + 1}</span>
+          <span class="dice" aria-hidden="true"></span>
+          <button type="button" class="reroll" data-action="reroll" aria-label="Reroll ${noun} ${i + 1}" title="Reroll this ${noun}">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 8.5A6 6 0 1 0 16 11.5"/><path d="M16 4v4.5h-4.5"/></svg>
+          </button>
           <button type="button" class="lock" data-action="lock" aria-pressed="false" aria-label="Lock ${noun} ${i + 1}" title="Lock this ${noun}">
             <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path class="shackle" d="M6 9V6.5a4 4 0 0 1 8 0V9"/><rect x="4" y="9" width="12" height="8.5" rx="1.5"/></svg>
           </button>
         </div>
-        <div class="dice" aria-hidden="true"></div>
-        <p class="bar-text"></p>
-        <button type="button" class="reroll" data-action="reroll" aria-label="Reroll ${noun} ${i + 1}">Reroll</button>`;
+        <p class="bar-text"></p>`;
       grid.appendChild(li);
     }
   }
@@ -80,8 +84,9 @@ export function createApp(game) {
       const lock = li.querySelector('.lock');
       const reroll = li.querySelector('.reroll');
       if (b) {
-        dice.innerHTML = dieSvg(b.dice[0]) + dieSvg(b.dice[1]);
-        text.innerHTML = `<span class="sum">${b.dice[0]} + ${b.dice[1]} = <b>${b.sum}</b></span>${game.cardHtml(b, state)}`;
+        // the faces, then their total: "3 + 4 = 7" is what the dice already show
+        dice.innerHTML = `${dieSvg(b.dice[0])}${dieSvg(b.dice[1])}<b class="sum">${b.sum}</b>`;
+        text.innerHTML = game.cardHtml(b, state);
         li.setAttribute('aria-label', `${cap(noun)} ${i + 1}: dice ${b.dice[0]} and ${b.dice[1]}, total ${b.sum}, ${game.cardText(b, state)}${state.locks[i] ? ', locked' : ''}`);
       } else {
         dice.innerHTML = '';
