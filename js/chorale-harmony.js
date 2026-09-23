@@ -44,7 +44,6 @@ export const CHORDS = {
   ii6:   { tones: [T(2), T(4), T(6)], bass: 4, label: 'ii6',   html: 'ii<sup>6</sup>',          fn: 'predominant' },
   ii7:   { tones: [T(2), T(4), T(6), T(1)], bass: 2, label: 'ii7', html: 'ii<sup>7</sup>',      fn: 'predominant' },
   ii65:  { tones: [T(2), T(4), T(6), T(1)], bass: 4, label: 'ii6/5', html: 'ii<sup>6</sup><sub>5</sub>', fn: 'predominant' },
-  iii:   { tones: [T(3), T(5), T(7)], bass: 3, label: 'iii',   html: 'iii',                     fn: 'tonic' },
   IV:    { tones: [T(4), T(6), T(1)], bass: 4, label: 'IV',    html: 'IV',                      fn: 'predominant' },
   IV6:   { tones: [T(4), T(6), T(1)], bass: 6, label: 'IV6',   html: 'IV<sup>6</sup>',          fn: 'predominant' },
   iv:    { tones: [T(4), T(6, -1), T(1)], bass: 4, label: 'iv', html: 'iv',                     fn: 'borrowed predominant' },
@@ -61,22 +60,26 @@ export const CHORDS = {
 
 // Position (1–16) × dice total (2–12). Phrase 1 = positions 1–8, phrase 2 = 9–16.
 // Each column keeps to one harmonic function, so any roll gives T–(D or PD)–T–(D or PD)–T–PD–PD–D
-// in the first phrase and the same shape closing V(7)–I in the second.
+// in the first phrase and the same shape closing V(7)–I in the second. Chords with a tendency
+// tone (a seventh, a raised or lowered note) sit only where the next column is certain to hold
+// its resolution: seventh chords of V before tonic columns, ii7/ii6/5, iv and V/V only in the
+// columns right before the dominant, and V6/V6/5 (leading tone in the bass) only before columns
+// of root-position I (or the deceptive vi at the rare totals).
 export const CHORALE_TABLE = {
   1:  ['vi', 'I', 'I6', 'I', 'I', 'I', 'I', 'I6', 'I', 'I', 'I6'],
-  2:  ['viio6', 'V43', 'ii6', 'V6', 'IV', 'V6', 'V43', 'IV', 'ii6', 'V65', 'viio6'],
-  3:  ['iii', 'I6', 'vi', 'I', 'I', 'I', 'I6', 'I', 'vi', 'I6', 'iii'],
-  4:  ['ii7', 'V43', 'IV', 'ii6', 'V6', 'IV', 'ii6', 'V6', 'ii', 'V43', 'IV6'],
-  5:  ['vi', 'I6', 'I', 'I6', 'I', 'I', 'I', 'I6', 'I', 'vi', 'iii'],
-  6:  ['iv', 'ii', 'IV6', 'IV', 'ii6', 'IV', 'IV', 'ii6', 'ii6', 'IV6', 'iv'],
-  7:  ['V7ofV', 'I64', 'ii', 'ii6', 'IV', 'ii6', 'I64', 'IV', 'ii65', 'VofV', 'I64'],
+  2:  ['viio6', 'V43', 'ii6', 'IV', 'ii6', 'V43', 'IV', 'V43', 'ii6', 'IV', 'viio6'],
+  3:  ['vi', 'I6', 'vi', 'I', 'I', 'I', 'I6', 'I', 'I6', 'vi', 'I6'],
+  4:  ['IV6', 'V65', 'IV', 'ii6', 'V6', 'IV', 'ii6', 'V6', 'ii', 'V65', 'IV6'],
+  5:  ['vi', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'vi'],
+  6:  ['ii', 'IV6', 'ii6', 'IV', 'ii6', 'IV', 'IV', 'ii6', 'ii6', 'IV6', 'ii'],
+  7:  ['V7ofV', 'iv', 'ii', 'ii6', 'IV', 'ii6', 'I64', 'IV', 'ii65', 'VofV', 'iv'],
   8:  ['V', 'V', 'V', 'V', 'V', 'V', 'V', 'V', 'V', 'V', 'V'],
   9:  ['vi', 'I', 'I6', 'I', 'I', 'I', 'I', 'I', 'I6', 'vi', 'I6'],
-  10: ['viio6', 'V65', 'IV', 'ii6', 'V6', 'IV', 'V43', 'V6', 'ii6', 'V65', 'viio6'],
-  11: ['iii', 'I6', 'vi', 'I', 'I', 'I', 'I6', 'I', 'I6', 'vi', 'iii'],
-  12: ['ii7', 'IV6', 'ii6', 'V43', 'IV', 'ii6', 'V6', 'IV', 'ii', 'V43', 'IV6'],
-  13: ['vi', 'I6', 'I', 'I', 'I6', 'I', 'I', 'I6', 'I', 'vi', 'I6'],
-  14: ['iv', 'ii', 'IV6', 'ii6', 'IV', 'IV', 'ii6', 'IV', 'ii65', 'ii6', 'iv'],
+  10: ['viio6', 'V43', 'ii6', 'IV', 'ii6', 'V43', 'IV', 'V43', 'ii6', 'IV', 'viio6'],
+  11: ['vi', 'I6', 'vi', 'I', 'I', 'I', 'I6', 'I', 'I6', 'vi', 'I6'],
+  12: ['IV6', 'V65', 'IV', 'ii6', 'V6', 'IV', 'ii6', 'V6', 'ii', 'V65', 'IV6'],
+  13: ['vi', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'vi'],
+  14: ['iv', 'ii', 'IV6', 'ii6', 'IV', 'IV', 'ii6', 'IV', 'ii65', 'ii7', 'iv'],
   15: ['V7', 'V', 'V7', 'V', 'V7', 'V7', 'V7', 'V', 'V7', 'V', 'V7'],
   16: ['I', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'I', 'I'],
 };

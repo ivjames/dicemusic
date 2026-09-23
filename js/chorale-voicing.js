@@ -120,18 +120,24 @@ export function transitionCost(prev, cur, prevChord, curChord, keyName) {
   }
   // voice overlap
   for (let i = 0; i < 3; i++) if (cur[i] > prev[i + 1] || cur[i + 1] < prev[i]) cost += 3;
-  // tendency tones of the previous chord
+  // tendency tones of the previous chord: hard rules wherever the next chord holds the
+  // resolution (the harmony table guarantees that it does), so an advertised rule is never
+  // merely paid for
   for (let i = 0; i < 4; i++) {
     const tone = prevChord.toneOf(prev[i] % 12);
     const d = cur[i] - prev[i];
-    if (prev[i] % 12 === leadingPc && tone.alt === 0 && (i === 3 || i === 0) && curChord.pcs.has(tonicPc)) {
-      if (d !== 1) cost += 8;                                        // leading tone in an outer voice rises
+    if (prev[i] % 12 === leadingPc && tone.alt === 0 && (i === 3 || i === 0) && curChord.pcs.has(tonicPc) && d !== 1) {
+      // the leading tone in an outer voice rises: absolute in the soprano, and in the bass
+      // whenever the next chord's bass is the tonic (V6 -> I); otherwise a penalty (V6 -> vi)
+      if (i === 3 || curChord.bassPc === tonicPc) return Infinity;
+      cost += 8;
     }
     if (prevChord.seventh && prev[i] % 12 === prevChord.seventh.pc) {
-      if (!(d === -1 || d === -2)) cost += 8;                       // sevenths fall by step
+      const stepDown = curChord.pcs.has((prev[i] + 11) % 12) || curChord.pcs.has((prev[i] + 10) % 12);
+      if (!(d === -1 || d === -2)) { if (stepDown) return Infinity; cost += 8; }   // sevenths fall by step
     }
-    if (tone.alt === 1 && d !== 1) cost += 6;                        // raised tone rises
-    if (tone.alt === -1 && d !== -1) cost += 6;                      // lowered tone falls
+    if (tone.alt === 1 && d !== 1) { if (curChord.pcs.has((prev[i] + 1) % 12)) return Infinity; cost += 6; }   // raised tone rises
+    if (tone.alt === -1 && d !== -1) { if (curChord.pcs.has((prev[i] + 11) % 12)) return Infinity; cost += 6; } // lowered tone falls
     if (prevChord.cadential64 && curChord.root.pc === dominantPc && i > 0) {
       if (tone.deg === 1 && d !== -1) cost += 5;                     // 6/4: 1 -> 7
       if (tone.deg === 3 && d !== -2) cost += 5;                     //      3 -> 2
@@ -192,6 +198,17 @@ export function violations(voicings, chords, keyName) {
       for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
         const iv1 = p[j] - p[i], iv2 = v[j] - v[i];
         if (p[i] !== v[i] && p[j] !== v[j] && isPerfect(iv1) && isPerfect(iv2) && ((iv1 % 12) + 12) % 12 === ((iv2 % 12) + 12) % 12) out.push(`${k}: parallel ${((iv1 % 12) + 12) % 12 === 0 ? 'octaves' : 'fifths'} ${NAMES[i]}-${NAMES[j]}`);
+      }
+      // tendency tones
+      const pc = chords[k - 1];
+      const leadingPc = (tonicPc + 11) % 12;
+      for (let i = 0; i < 4; i++) {
+        const tone = pc.toneOf(p[i] % 12);
+        const d = v[i] - p[i];
+        if (p[i] % 12 === leadingPc && tone.alt === 0 && (i === 3 || (i === 0 && chords[k].bassPc === tonicPc)) && chords[k].pcs.has(tonicPc) && d !== 1) out.push(`${k}: leading tone in ${NAMES[i]} does not rise`);
+        if (pc.seventh && p[i] % 12 === pc.seventh.pc && !(d === -1 || d === -2)) out.push(`${k}: seventh in ${NAMES[i]} does not fall by step`);
+        if (tone.alt === 1 && d !== 1) out.push(`${k}: raised tone in ${NAMES[i]} does not rise`);
+        if (tone.alt === -1 && d !== -1) out.push(`${k}: lowered tone in ${NAMES[i]} does not fall`);
       }
     }
   });

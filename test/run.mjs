@@ -220,6 +220,9 @@ test('every module import and asset URL carries the ?v= stamp the deploy rewrite
   assert.ok(/^  const BUILD = 'dev';$/m.test(chorale));
   const deploy = fs.readFileSync(new URL('../bin/dicemusic', import.meta.url), 'utf8');
   assert.ok(deploy.includes('index.html chorale/index.html js/*.js'), 'deploy stamps the chorale page too');
+  assert.ok(deploy.includes('ensure_chorale_vhost') && deploy.includes('location = /chorale/index.html'), 'deploy brings the installed vhost up to date');
+  const vhost = fs.readFileSync(new URL('../deploy/nginx.conf.template', import.meta.url), 'utf8');
+  assert.ok(/location = \/chorale\/index\.html \{[^}]*no-cache/.test(vhost), 'template serves the chorale entry page no-cache');
   const dir = new URL('../js/', import.meta.url);
   for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.js'))) {
     const src = fs.readFileSync(new URL(f, dir), 'utf8');
@@ -244,6 +247,16 @@ test('chorale table: 16 columns of 11 known chords; cadences fixed; each column 
   for (const p of [1, 3, 5, 9, 11, 13]) assert.ok(CHORALE_TABLE[p].every((s) => ['tonic', 'tonic substitute'].includes(fnOf(s))), `column ${p} is tonic-function`);
   for (const p of [6, 14]) assert.ok(CHORALE_TABLE[p].every((s) => fnOf(s).includes('predominant')), `column ${p} is predominant`);
   assert.equal(chordFor(0, 7), 'I'); assert.equal(chordFor(14, 7), 'V7'); assert.equal(chordFor(6, 2), 'V7ofV');
+  // chords with a tendency tone sit only where the next column is certain to hold its resolution
+  const hasDeg = (sym, deg) => CHORDS[sym].tones.some((t) => t[0] === deg && t[1] === 0);
+  for (let p = 1; p <= 15; p++) for (const sym of CHORALE_TABLE[p]) {
+    const c = CHORDS[sym];
+    const next = CHORALE_TABLE[p + 1];
+    if (c.tones.length === 4) { const sev = c.tones[3][0]; const down = sev === 1 ? 7 : sev - 1; assert.ok(next.every((n) => hasDeg(n, down)), `${p}: ${sym} seventh must be able to fall`); }
+    for (const [deg, alt] of c.tones) if (alt !== 0) assert.ok(next.every((n) => hasDeg(n, 5)), `${p}: ${sym} chromatic tone must resolve to 5`);
+    if (['V', 'V6', 'V7', 'V65', 'V43', 'viio6'].includes(sym)) assert.ok(next.every((n) => hasDeg(n, 1)), `${p}: ${sym} leading tone must be able to rise`);
+    if (['V6', 'V65'].includes(sym)) assert.ok(next.every((n) => CHORDS[n].bass === 1 || n === 'vi'), `${p}: ${sym} bass leading tone needs a root-position tonic (or vi) next`);
+  }
   assert.throws(() => chordFor(16, 7), RangeError); assert.throws(() => chordFor(0, 13), RangeError);
 });
 
@@ -262,6 +275,8 @@ test('chorale voicing: 700 random rolls in seven keys break no rule and are dete
       // the leading tone in the soprano at the final cadence rises to the tonic
       const s15 = a.voicings[14][3], s16 = a.voicings[15][3];
       if ((s15 - (a.chords[15].root.pc)) % 12 === 11) assert.equal(s16 - s15, 1);
+      // every seventh falls by step (the checker above enforces it too; this is the direct statement)
+      a.chords.forEach((c, k) => { if (c.seventh && k < 15) for (let i = 0; i < 4; i++) if (a.voicings[k][i] % 12 === c.seventh.pc) assert.ok([-1, -2].includes(a.voicings[k + 1][i] - a.voicings[k][i]), `${key} ${syms.join(' ')} seventh at ${k}`); });
     }
   }
   assert.ok(worstCost < 400, `worst path cost ${worstCost}`);
@@ -310,7 +325,7 @@ test('chorale notation: four voices, key signatures, correct spelling of chromat
   assert.equal(f[6].symbol, 'V7ofV');
   const abcF = choraleToAbc(f, 'F');
   assert.ok(/=[Bb]/.test(abcF), `B natural written in F major: ${abcF}`);
-  const d = composeChorale(Array.from({ length: 16 }, (_, i) => (i === 5 ? [1, 1] : [3, 4])), { key: 'D' });   // position 6, total 2 -> iv
+  const d = composeChorale(Array.from({ length: 16 }, (_, i) => (i === 6 ? [1, 2] : [3, 4])), { key: 'D' });   // position 7, total 3 -> iv
   assert.equal(d[5].symbol, 'iv');
   assert.ok(/_[Bb]/.test(choraleToAbc(d, 'D')), 'B flat written in D major');
   assert.deepEqual(choralePlan(f).map(choraleScoreIndex), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7]);
