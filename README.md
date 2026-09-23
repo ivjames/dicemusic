@@ -72,5 +72,6 @@ base URL is given. Screenshots land in `test/shots/` (gitignored). Set `NODE_PAT
 - The trio (one die, measures T1–T96) is not implemented.
 - The tone is a synthesised struck string, not a sampled fortepiano.
 - Only `index.html` is served `no-cache`; the modules and stylesheet are cached heuristically.
-  Their URLs carry `?v=<commit>` via an import map, stamped by `dicemusic deploy`, so a deploy
-  is picked up on the next ordinary visit. Locally the stamp reads `dev`.
+  Every module import, the entry point, the stylesheet and the engraver carry `?v=<commit>`,
+  stamped by `dicemusic deploy`, so a deploy is picked up on the next ordinary visit on any
+  browser. Locally the stamp reads `dev`.

@@ -71,23 +71,10 @@
 <script>
   const BUILD = 'dev';
 </script>
-<!-- Every module URL carries the deployed commit (stamped by `dicemusic deploy`), so a new
-     deploy is fetched on the next ordinary visit even where browsers cache scripts heuristically. -->
-<script type="importmap">
-{
-  "imports": {
-    "./js/app.js": "./js/app.js?v=dev",
-    "./js/dice.js": "./js/dice.js?v=dev",
-    "./js/notation.js": "./js/notation.js?v=dev",
-    "./js/player.js": "./js/player.js?v=dev",
-    "./js/score.js": "./js/score.js?v=dev",
-    "./js/share.js": "./js/share.js?v=dev",
-    "./js/synth.js": "./js/synth.js?v=dev",
-    "./js/table.js": "./js/table.js?v=dev",
-    "./js/wav.js": "./js/wav.js?v=dev"
-  }
-}
-</script>
+<!-- The entry point, its nested imports (inside js/*.js), the stylesheet and the engraver all
+     carry ?v=<build>, stamped by `dicemusic deploy`, so a deploy is picked up on the next
+     ordinary visit even where browsers cache scripts heuristically. No import map, so the
+     scheme also holds on browsers that run modules but ignore import maps. -->
 <script type="module" src="js/app.js?v=dev"></script>
 <script>document.getElementById('build').textContent = BUILD;</script>
 </body>

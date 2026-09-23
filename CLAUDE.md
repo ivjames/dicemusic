@@ -55,10 +55,11 @@ as a phantom second build.)
 - Tests: `node test/run.mjs` (Node) and `node test/browser.cjs` (Playwright,
   headless Chromium). Run both before opening a PR.
 - The vhost serves `index.html` as `no-cache` but the modules under `js/` with
-  nginx's default (heuristic) caching. `index.html` therefore references every
-  module through an import map with `?v=<build>` URLs, and `dicemusic deploy`
-  stamps the commit into those and into the page's `BUILD` constant. A new
-  module file needs an import-map entry in `index.html` (the test suite checks).
+  nginx's default (heuristic) caching. Every module import inside `js/*.js`,
+  the entry point, the stylesheet and the engraver therefore carry `?v=<build>`,
+  and `dicemusic deploy` stamps the commit into all of them and into the page's
+  `BUILD` constant. A new import must carry `?v=dev` (the test suite checks); no
+  import map is used, so this also holds on browsers that ignore import maps.
 
 ## Things worth knowing
 
