@@ -1,10 +1,10 @@
-import { BARS } from './table.js';
-import { composeFrom, rollAll, rollUnlocked, rerollBar, isPair } from './dice.js';
-import { encodeState, decodeState } from './share.js';
-import { renderMeasure, playbackPlan, mixdown, bufferKey, barSamples, BAR_SECONDS } from './synth.js';
-import { encodeWav } from './wav.js';
-import { Player } from './player.js';
-import { minuetToAbc, scoreMeasureIndex } from './notation.js';
+import { BARS } from './table.js?v=dev';
+import { composeFrom, rollAll, rollUnlocked, rerollBar, isPair } from './dice.js?v=dev';
+import { encodeState, decodeState } from './share.js?v=dev';
+import { renderMeasure, playbackPlan, mixdown, bufferKey, barSamples, BAR_SECONDS } from './synth.js?v=dev';
+import { encodeWav } from './wav.js?v=dev';
+import { Player } from './player.js?v=dev';
+import { minuetToAbc, scoreMeasureIndex } from './notation.js?v=dev';
 
 const $ = (sel) => document.querySelector(sel);
 const grid = $('#bars');

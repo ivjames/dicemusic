@@ -1,4 +1,4 @@
-import { BARS, measureFor } from './table.js';
+import { BARS, measureFor } from './table.js?v=dev';
 
 /** One fair six-sided die. `rng` returns a float in [0, 1). */
 export function rollDie(rng = Math.random) {

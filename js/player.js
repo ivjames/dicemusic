@@ -1,7 +1,7 @@
 // Web Audio playback of a plan of rendered measure buffers.
 // Bars are scheduled up front on one clock, each at exactly k × barSamples, so there are no gaps.
 // Pause stops the scheduled sources and remembers the position; resume schedules from there.
-import { barSamples, measureSamples, planSamples } from './synth.js';
+import { barSamples, measureSamples, planSamples } from './synth.js?v=dev';
 
 const AC = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
 
