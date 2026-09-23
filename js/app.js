@@ -158,16 +158,15 @@ async function renderScore() {
 // Lay the score out for the width we have: eight bars a line on a wide screen (the two
 // systems of the print), fewer on a phone, at a readable size rather than shrunk to fit.
 function engrave(ABCJS, abc) {
-  const width = Math.max(320, scoreEl.clientWidth - 24);
-  const wide = width >= 860;
-  const scale = width >= 620 ? 1 : 0.9;
+  // Measure the section, not the score box: a previous render must not feed back into the next.
+  const width = Math.max(300, $('#score-section').clientWidth - 26);
   const opts = {
-    add_classes: true, foregroundColor: 'currentColor', scale, staffwidth: width / scale,
+    add_classes: true, foregroundColor: 'currentColor', responsive: 'resize', staffwidth: width,
     paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0,
   };
   // Wide: the two systems of the print (the ABC's own line breaks). Narrower: let abcjs
   // re-flow into shorter systems at a readable size rather than shrinking the print to fit.
-  if (!wide) opts.wrap = { minSpacing: 1.4, maxSpacing: 2.6, preferredMeasuresPerLine: width >= 620 ? 6 : width >= 440 ? 4 : 3 };
+  if (width < 860) opts.wrap = { minSpacing: 1.4, maxSpacing: 2.6, preferredMeasuresPerLine: width >= 620 ? 6 : width >= 440 ? 4 : 3 };
   ABCJS.renderAbc(scoreEl, abc, opts);
   scoreEl.dataset.width = String(width);
 }
@@ -176,7 +175,7 @@ window.addEventListener('resize', () => {
   if (!scoreEl.dataset.abc || !window.ABCJS) return;
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    const width = Math.max(320, scoreEl.clientWidth - 24);
+    const width = Math.max(300, $('#score-section').clientWidth - 26);
     if (String(width) === scoreEl.dataset.width) return;
     engrave(window.ABCJS, scoreEl.dataset.abc);
     scoreMm = -1; highlightScore(player.state === 'idle' ? -1 : scoreMeasureIndex(state.plan[Math.max(0, player.currentIndex())]));
