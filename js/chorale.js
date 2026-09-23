@@ -162,7 +162,9 @@ export const choraleGame = {
     if (k !== null && !KEY_NAMES.includes(k)) return 'The link names a key this page does not know, so nothing was loaded.';
     if (t !== null && !TEXTURES.includes(t)) return 'The link names a texture this page does not know, so nothing was loaded.';
     if (m !== null && !MOTIONS.includes(m)) return 'The link names a kind of motion this page does not know, so nothing was loaded.';
-    if (q !== null && !(/^\d{2,3}$/.test(q) && Number(q) >= TEMPO.min && Number(q) <= TEMPO.max)) return `The link asks for a tempo outside ${TEMPO.min} to ${TEMPO.max}, so nothing was loaded.`;
+    // the slider holds only TEMPO.min + n * TEMPO.step, so a tempo it cannot show is refused
+    // rather than restored to a control that would snap to a different value
+    if (q !== null && !(/^\d{2,3}$/.test(q) && Number(q) >= TEMPO.min && Number(q) <= TEMPO.max && (Number(q) - TEMPO.min) % TEMPO.step === 0)) return `The link asks for a tempo the slider does not have (${TEMPO.min} to ${TEMPO.max} in steps of ${TEMPO.step}), so nothing was loaded.`;
     if (i !== null && !INSTRUMENT_CHOICES.includes(i)) return 'The link names an instrument this page does not have, so nothing was loaded.';
     s.key = k ?? DEFAULTS.key; s.texture = t ?? DEFAULTS.texture; s.motion = m ?? DEFAULTS.motion;
     s.tempo = q === null ? DEFAULTS.tempo : Number(q); s.instrument = i ?? DEFAULTS.instrument;

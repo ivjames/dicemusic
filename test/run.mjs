@@ -543,6 +543,9 @@ test('chorale settings: the link carries key, texture, motion, tempo and instrum
   assert.match(choraleGame.decodeSettings(new URLSearchParams('q=300'), {}), /tempo/);
   assert.match(choraleGame.decodeSettings(new URLSearchParams('q=7'), {}), /tempo/);
   assert.match(choraleGame.decodeSettings(new URLSearchParams('q=abc'), {}), /tempo/);
+  assert.match(choraleGame.decodeSettings(new URLSearchParams('q=49'), {}), /tempo/, 'a tempo off the slider step is refused');
+  assert.match(choraleGame.decodeSettings(new URLSearchParams('q=130'), {}), /tempo/);
+  for (const ok of [48, 52, 100, 132]) { const t = {}; assert.equal(choraleGame.decodeSettings(new URLSearchParams(`q=${ok}`), t), null); assert.equal(t.tempo, ok); }
   assert.match(choraleGame.decodeSettings(new URLSearchParams('i=kazoo'), {}), /instrument/);
   assert.deepEqual([TEXTURES, MOTIONS], [['chorale', 'prelude'], ['plain', 'passing', 'lively']]);
   // the renderer follows the step, not the settings at render time: a queued step of another
