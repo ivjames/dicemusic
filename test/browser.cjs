@@ -10,6 +10,29 @@ const ROOT = path.resolve(__dirname, '..');
 const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
 fs.mkdirSync(OUT, { recursive: true });
 
+/**
+ * A row of throw cards is a line of the engraved score, or a clean half or quarter of one where
+ * the cards would be too narrow (never fewer than two a row). The line's cards are the bars of
+ * the plan whose engraved measure sits on it (the minuet's bar 8 is drawn twice, as two endings).
+ */
+async function rowsMatchScore(page, label) {
+  const r = await page.evaluate(() => {
+    const cols = getComputedStyle(document.querySelector('#bars')).gridTemplateColumns.split(' ').length;
+    const mms = new Set([...document.querySelector('#score').querySelectorAll('[class*="abcjs-mm"]')]
+      .map((el) => (el.getAttribute('class') || '').split(' '))
+      .filter((cls) => cls.includes('abcjs-l0'))
+      .map((cls) => Number(cls.find((c) => /^abcjs-mm\d+$/.test(c)).slice(8))));
+    const cards = new Set(window.__mozart.state.plan.filter((s) => mms.has(window.__mozart.scoreIndexOf(s))).map((s) => s.bar)).size;
+    const card = document.querySelector('#bars .bar').getBoundingClientRect().width;
+    return { cols, cards, card, chosen: window.__mozart.cardsPerRow(), width: window.innerWidth };
+  });
+  assert.equal(r.cols, r.chosen, `${label}: grid shows the chosen column count`);
+  const ratio = r.cards / r.cols;
+  assert.ok([1, 2, 4].includes(ratio) || (r.cols === 2 && r.cards < 2), `${label}: ${r.cards} cards on the first score line, ${r.cols} a row, at ${r.width}px`);
+  assert.ok(r.card >= 100, `${label}: card ${r.card}px wide`);
+  return r;
+}
+
 async function main() {
   let base = process.argv[2]; let server = null;
   if (!base) {
@@ -224,6 +247,7 @@ async function main() {
     assert.ok(!(await page.locator('#score-section').isHidden()));
     // 17 engraved measures: 0..6, the two endings 7 and 8, then 9..16
     for (const mm of [0, 7, 8, 16]) assert.ok((await page.locator(`#score .abcjs-mm${mm}`).count()) > 0, `measure ${mm} drawn`);
+    await rowsMatchScore(page, 'minuet');
     assert.equal(await page.locator('#score .abcjs-mm17').count(), 0);
     assert.equal(await page.locator('#score .abcjs-ending').count() >= 2, true, 'volta brackets');
     // Highlight follows the playhead: bar 1 -> measure 0; after bar 8 without repeats -> measure 8 then 9.
@@ -365,8 +389,10 @@ async function main() {
     }));
     const card = await cp.locator('#bars .bar').first().boundingBox();
     assert.ok(card.height < 90, `card height ${card.height}`);
-    const columns = await cp.evaluate(() => [getComputedStyle(document.querySelector('#bars')).gridTemplateColumns.split(' ').length, window.innerWidth]);
-    assert.equal(columns[0], columns[1] > 1000 ? 8 : columns[1] > 640 ? 4 : 2, `throws in ${columns[0]} columns at ${columns[1]} px`);
+    await rowsMatchScore(cp, 'broken chords');
+    await cp.selectOption('#texture', 'chorale');
+    await cp.waitForFunction(() => window.__mozart.state.settings.texture === 'chorale' && document.querySelector('#score').dataset.abc.includes('M:4/4') && window.__mozart.scoreReady(), null, { timeout: 20000 });
+    await rowsMatchScore(cp, 'four voices');
     assert.ok(await cp.evaluate(() => [...document.querySelectorAll('#bars .bar .lock, #bars .bar .reroll')].every((b) => { const r = b.getBoundingClientRect(), c = b.closest('.bar').getBoundingClientRect(); return r.right <= c.right + 0.5 && r.left >= c.left - 0.5; })), 'every icon button lies inside its card');
     assert.deepEqual(cerrs, []);
     await cp.close();

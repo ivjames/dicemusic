@@ -18,6 +18,8 @@ createApp({
   summary: (state) => `${state.plan.length} bars · about ${Math.round(state.plan.length * BAR_SECONDS)} seconds · measures ${state.bars.map((b) => b.measure).join(', ')}`,
   plan: (state) => playbackPlan(state.bars.map((b) => b.measure), state.settings.repeats),
   render: (step, sr) => renderMeasure(step.measureId, sr, step.ending),
+  // the print breaks its lines every eight bars; narrower, one card per engraved measure
+  cardsPerRow: (state, perLine, wide) => (wide ? 8 : perLine),
   positionText: (step, index, state) => {
     const pass = state.settings.repeats && step.bar < 8 ? ` (${index < 8 ? 'first' : 'second'} time)` : '';
     return `Playing bar ${step.bar + 1}${pass}`;

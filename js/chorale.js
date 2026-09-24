@@ -125,8 +125,10 @@ export const choraleGame = {
   pieceNoun: 'chorale',
   shareTitle: 'A four-part chorale from the dice',
   settingsNote: 'the key, texture, motion, tempo and instrument',
-  wideWidth: (state) => (isPrelude(state) ? 1100 : 700),
+  wideWidth: (state) => (isPrelude(state) ? 900 : 700),   // above this the ABC's own four-bar lines apply
   measuresPerLine: (width, state) => (isPrelude(state) ? (width >= 640 ? 4 : width >= 400 ? 2 : 1) : (width >= 520 ? 4 : 2)),
+  // a line of the score holds four bars when wide: eight chords as four voices, four as broken chords
+  cardsPerRow: (state, perLine, wide) => (wide ? 4 : perLine) * (isPrelude(state) ? 1 : 2),
   defaultSettings: () => ({ ...DEFAULTS }),
   compose,
   cardHtml: (b) => `<b class="roman">${b.chord.html}</b><span class="fn">${b.chord.fn}</span>`,

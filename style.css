@@ -87,8 +87,8 @@ main { max-width: 60rem; margin: 0 auto; }
 .position { flex-basis: 100%; margin: 0; text-align: center; min-height: 1.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .share-url { flex-basis: 100%; font: inherit; font-size: .9rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
 
-/* Eight to a row at full width, one row of throws to a line of the score (four bars of the
-   chorale, eight of the minuet); four where the score wraps, two on a phone. */
+/* One row of throws to a line of the score. The controller sets the column count inline from
+   the same width and measures-per-line the engraver uses; these are only the fallbacks. */
 .bars { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(8, minmax(0, 1fr)); }
 @media (max-width: 1000px) { .bars { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; } }
 @media (max-width: 640px) { .bars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } }
