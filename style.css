@@ -87,8 +87,10 @@ main { max-width: 60rem; margin: 0 auto; }
 .position { flex-basis: 100%; margin: 0; text-align: center; min-height: 1.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .share-url { flex-basis: 100%; font: inherit; font-size: .9rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
 
-.bars { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
-@media (max-width: 400px) { .bars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .die { width: 14px; height: 14px; } }
+/* Four to a row, like the four bars to a line of the score; two where the score itself wraps to two. */
+.bars { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 640px) { .bars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } }
+@media (max-width: 400px) { .die { width: 14px; height: 14px; } }
 .bar {
   position: relative; display: flex; flex-direction: column; gap: 0; padding: 4px 8px 6px;
   background: var(--paper-2); border: 1.5px solid var(--line); border-radius: var(--radius); min-height: 0; min-width: 0;
