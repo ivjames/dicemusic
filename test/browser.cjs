@@ -366,7 +366,8 @@ async function main() {
     const card = await cp.locator('#bars .bar').first().boundingBox();
     assert.ok(card.height < 90, `card height ${card.height}`);
     const columns = await cp.evaluate(() => [getComputedStyle(document.querySelector('#bars')).gridTemplateColumns.split(' ').length, window.innerWidth]);
-    assert.equal(columns[0], columns[1] > 640 ? 4 : 2, `throws in ${columns[0]} columns at ${columns[1]} px`);
+    assert.equal(columns[0], columns[1] > 1000 ? 8 : columns[1] > 640 ? 4 : 2, `throws in ${columns[0]} columns at ${columns[1]} px`);
+    assert.ok(await cp.evaluate(() => [...document.querySelectorAll('#bars .bar .lock, #bars .bar .reroll')].every((b) => { const r = b.getBoundingClientRect(), c = b.closest('.bar').getBoundingClientRect(); return r.right <= c.right + 0.5 && r.left >= c.left - 0.5; })), 'every icon button lies inside its card');
     assert.deepEqual(cerrs, []);
     await cp.close();
   });

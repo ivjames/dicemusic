@@ -13,7 +13,7 @@ createApp({
   settingsNote: 'the repeat setting',
   defaultSettings: () => ({ repeats: false }),
   compose: (pairs) => composeFrom(pairs),
-  cardHtml: (b) => `<span class="measure">Measure <b>${b.measure}</b></span>`,
+  cardHtml: (b) => `<b class="roman">${b.measure}</b><span class="fn">measure</span>`,
   cardText: (b) => `measure ${b.measure}`,
   summary: (state) => `${state.plan.length} bars · about ${Math.round(state.plan.length * BAR_SECONDS)} seconds · measures ${state.bars.map((b) => b.measure).join(', ')}`,
   plan: (state) => playbackPlan(state.bars.map((b) => b.measure), state.settings.repeats),

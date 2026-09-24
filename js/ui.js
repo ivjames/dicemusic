@@ -56,20 +56,23 @@ export function createApp(game) {
       const li = document.createElement('li');
       li.className = 'bar';
       li.dataset.bar = String(i);
-      // One compact card: the position, the two faces and their total, then reroll and lock as
-      // icon buttons; the text below names what the throw chose. Full wording is in the labels.
+      // One compact card, eight to a row at full width: the position, the two faces and their
+      // total, then what the throw chose, with reroll and lock stacked as icon buttons on the
+      // right. Full wording is in the labels.
       li.innerHTML = `
         <div class="bar-head">
           <span class="bar-num" aria-hidden="true">${i + 1}</span>
           <span class="dice" aria-hidden="true"></span>
+        </div>
+        <p class="bar-text"></p>
+        <div class="bar-side">
           <button type="button" class="reroll" data-action="reroll" aria-label="Reroll ${noun} ${i + 1}" title="Reroll this ${noun}">
             <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 8.5A6 6 0 1 0 16 11.5"/><path d="M16 4v4.5h-4.5"/></svg>
           </button>
           <button type="button" class="lock" data-action="lock" aria-pressed="false" aria-label="Lock ${noun} ${i + 1}" title="Lock this ${noun}">
             <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path class="shackle" d="M6 9V6.5a4 4 0 0 1 8 0V9"/><rect x="4" y="9" width="12" height="8.5" rx="1.5"/></svg>
           </button>
-        </div>
-        <p class="bar-text"></p>`;
+        </div>`;
       grid.appendChild(li);
     }
   }

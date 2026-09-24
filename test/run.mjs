@@ -249,7 +249,7 @@ test('chorale table: 16 columns of 11 known chords; cadences fixed; each column 
   assert.ok(CHORALE_TABLE[16].every((s) => s === 'I'));
   assert.ok(CHORALE_TABLE[15].every((s) => s === 'V' || s === 'V7'));
   for (const p of [1, 3, 5, 9, 11, 13]) assert.ok(CHORALE_TABLE[p].every((s) => ['tonic', 'tonic substitute'].includes(fnOf(s))), `column ${p} is tonic-function`);
-  for (const p of [6, 14]) assert.ok(CHORALE_TABLE[p].every((s) => fnOf(s).includes('predominant')), `column ${p} is predominant`);
+  for (const p of [6, 14]) assert.ok(CHORALE_TABLE[p].every((s) => fnOf(s).includes('pre-dominant')), `column ${p} is predominant`);
   assert.equal(chordFor(0, 7), 'I'); assert.equal(chordFor(14, 7), 'V7'); assert.equal(chordFor(6, 2), 'V7ofV');
   // chords with a tendency tone sit only where the next column is certain to hold its resolution
   const hasDeg = (sym, deg) => CHORDS[sym].tones.some((t) => t[0] === deg && t[1] === 0);
