@@ -42,8 +42,9 @@ export function renderPrelude(step, sampleRate) {
   return renderNotes(events, step.dur, sampleRate, step.instrument);
 }
 
-/** The prelude as an ABC tune: a grand staff, four bars to a line, the figure written out. */
-export function preludeToAbc(bars, keyName, tempo = 72) {
+/** The prelude as an ABC tune: a grand staff, `barsPerLine` bars to a line, the figure written out. */
+export function preludeToAbc(bars, keyName, tempo = 72, barsPerLine = 4) {
+  if (!Number.isInteger(barsPerLine) || barsPerLine < 1) throw new RangeError('barsPerLine must be a positive integer');
   const rh = [], lh = [];
   let rhLine = '[V:RH] ', lhLine = '[V:LH] ';
   bars.forEach((b, i) => {
@@ -63,7 +64,7 @@ export function preludeToAbc(bars, keyName, tempo = 72) {
       }
       rhLine += '| '; lhLine += '| ';
     }
-    if (i % 4 === 3) { rh.push(rhLine.trimEnd()); lh.push(lhLine.trimEnd()); rhLine = '[V:RH] '; lhLine = '[V:LH] '; }
+    if ((i + 1) % barsPerLine === 0 || i === bars.length - 1) { rh.push(rhLine.trimEnd()); lh.push(lhLine.trimEnd()); rhLine = '[V:RH] '; lhLine = '[V:LH] '; }
   });
   return [
     'X:1', 'T:', 'M:12/8', 'L:1/8', `Q:3/8=${tempo}`,

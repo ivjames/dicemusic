@@ -11,24 +11,33 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
 fs.mkdirSync(OUT, { recursive: true });
 
 /**
- * A row of throw cards is a line of the engraved score, or a clean half or quarter of one where
- * the cards would be too narrow (never fewer than two a row). The line's cards are the bars of
- * the plan whose engraved measure sits on it (the minuet's bar 8 is drawn twice, as two endings).
+ * The score is cut into lines and the grid into rows from the same bars-per-line, so every
+ * engraved line starts a new row of cards and fills whole rows (or is shorter than one). The
+ * line's cards are the bars of the plan whose engraved measure sits on it (the minuet's bar 8
+ * is engraved twice, as two endings).
  */
 async function rowsMatchScore(page, label) {
   const r = await page.evaluate(() => {
     const cols = getComputedStyle(document.querySelector('#bars')).gridTemplateColumns.split(' ').length;
-    const mms = new Set([...document.querySelector('#score').querySelectorAll('[class*="abcjs-mm"]')]
-      .map((el) => (el.getAttribute('class') || '').split(' '))
-      .filter((cls) => cls.includes('abcjs-l0'))
-      .map((cls) => Number(cls.find((c) => /^abcjs-mm\d+$/.test(c)).slice(8))));
-    const cards = new Set(window.__mozart.state.plan.filter((s) => mms.has(window.__mozart.scoreIndexOf(s))).map((s) => s.bar)).size;
+    const byLine = new Map();
+    for (const el of document.querySelector('#score').querySelectorAll('[class*="abcjs-mm"]')) {
+      const cls = (el.getAttribute('class') || '').split(' ');
+      const l = cls.find((c) => /^abcjs-l\d+$/.test(c)), m = cls.find((c) => /^abcjs-mm\d+$/.test(c));
+      if (!l || !m) continue;
+      if (!byLine.has(l)) byLine.set(l, new Set());
+      byLine.get(l).add(Number(m.slice(8)));
+    }
+    const lines = [...byLine.entries()].sort((a, b) => Number(a[0].slice(7)) - Number(b[0].slice(7)))
+      .map(([, mms]) => [...new Set(window.__mozart.state.plan.filter((s) => mms.has(window.__mozart.scoreIndexOf(s))).map((s) => s.bar))].sort((a, b) => a - b));
     const card = document.querySelector('#bars .bar').getBoundingClientRect().width;
-    return { cols, cards, card, chosen: window.__mozart.cardsPerRow(), width: window.innerWidth };
+    return { cols, lines, card, chosen: window.__mozart.cardsPerRow(), barsPerLine: window.__mozart.barsPerLine(), width: window.innerWidth };
   });
   assert.equal(r.cols, r.chosen, `${label}: grid shows the chosen column count`);
-  const ratio = r.cards / r.cols;
-  assert.ok([1, 2, 4].includes(ratio) || (r.cols === 2 && r.cards < 2), `${label}: ${r.cards} cards on the first score line, ${r.cols} a row, at ${r.width}px`);
+  assert.ok(r.lines.length >= 2 && r.lines.every((l) => l.length), `${label}: ${r.lines.length} engraved lines`);
+  for (const line of r.lines) {
+    assert.equal(line[0] % r.cols, 0, `${label}: the line starting at card ${line[0] + 1} does not start a row (${r.cols} a row, ${r.barsPerLine} bars a line) at ${r.width}px`);
+    assert.ok(line.length <= r.cols || line.length % r.cols === 0, `${label}: a line of ${line.length} cards does not fill whole rows of ${r.cols}`);
+  }
   assert.ok(r.card >= 100, `${label}: card ${r.card}px wide`);
   return r;
 }

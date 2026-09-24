@@ -147,14 +147,13 @@ export function createApp(game) {
   }
   async function renderScore() {
     const section = $('#score-section');
-    if (!state.bars) { section.hidden = true; scoreEl.innerHTML = ''; lineCards = 0; layoutGrid(); return; }
+    if (!state.bars) { section.hidden = true; scoreEl.innerHTML = ''; delete scoreEl.dataset.abc; layoutGrid(); return; }
     section.hidden = false;
-    const abc = game.abc(state);
-    scoreEl.dataset.abc = abc;
+    const gen = state.generation;
     try {
       const ABCJS = await loadAbcjs();
-      if (scoreEl.dataset.abc !== abc) return;       // a newer roll won
-      engrave(ABCJS, abc);
+      if (state.generation !== gen || !state.bars) return;       // a newer roll or setting won
+      engrave(ABCJS);
       scoreEl.setAttribute('aria-label', game.scoreLabel(state));
       $('#save-score').disabled = false;
       scoreMm = -1;
@@ -164,50 +163,31 @@ export function createApp(game) {
       $('#save-score').disabled = true;
     }
   }
-  // The score and the card grid are laid out from one measurement, so a row of cards is a
-  // line of the score, or a clean half or quarter of one where the cards would be too narrow.
-  // Measure the page column, not the score box: a previous render must not feed back into the next.
+  // The score is cut into lines and the card grid into rows from one number, the bars to a
+  // line at the page's width, so a row of cards is a line of the score, or a clean half of
+  // one where the cards would be too narrow. Measure the page column, not the score box: a
+  // previous render must not feed back into the next.
   function layoutWidth() { return Math.max(300, document.querySelector('main').clientWidth - 26); }
-  function wideFor() { return typeof game.wideWidth === 'function' ? game.wideWidth(state) : (game.wideWidth || 860); }
-  function perLineFor(width) { return game.measuresPerLine ? game.measuresPerLine(width, state) : (width >= 620 ? 6 : width >= 440 ? 4 : 3); }
+  function barsPerLineFor(width) { return game.barsPerLine ? game.barsPerLine(width, state) : (width >= 860 ? 8 : width >= 620 ? 6 : width >= 440 ? 4 : 2); }
   const CARD_MIN_WIDTH = 112;   // below this the head row of a card no longer fits
-  let lineCards = 0;            // cards on the first line of the score as actually engraved (0: no score)
-  /** Count the bars of the plan whose engraved measure sits on the score's first line. */
-  function measureFirstLine() {
-    if (!state.plan.length || !scoreEl.querySelector('svg')) return 0;
-    const mms = new Set();
-    for (const el of scoreEl.querySelectorAll('[class*="abcjs-mm"]')) {
-      const cls = (el.getAttribute('class') || '').split(' ');
-      if (!cls.includes('abcjs-l0')) continue;
-      const m = cls.find((c) => /^abcjs-mm\d+$/.test(c));
-      if (m) mms.add(Number(m.slice(8)));
-    }
-    const bars = new Set();
-    for (const s of state.plan) if (mms.has(game.scoreIndex(s))) bars.add(s.bar);
-    return bars.size;
-  }
   function layoutGrid(width = layoutWidth()) {
-    // the engraver treats measures-per-line as a preference, so the rendered first line wins
-    // over the preference whenever there is one
-    let n = lineCards;
-    if (!n) n = game.cardsPerRow ? game.cardsPerRow(state, perLineFor(width), width >= wideFor()) : perLineFor(width);
-    n = Math.max(2, Math.min(16, Math.round(n)));
-    while (n > 2 && n * CARD_MIN_WIDTH > grid.clientWidth) n = Math.ceil(n / 2);
+    const bpl = barsPerLineFor(width);
+    let n = game.cardsPerRow ? game.cardsPerRow(state, bpl) : bpl;
+    n = Math.max(1, Math.min(16, Math.round(n)));
+    while (n > 2 && n % 2 === 0 && n * CARD_MIN_WIDTH > grid.clientWidth) n /= 2;   // halve, never split a line unevenly
     grid.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
     return n;
   }
-  // Lay the score out for the width we have. Wide: the ABC's own line breaks. Narrower: let
-  // abcjs re-flow into shorter systems at a readable size rather than shrinking to fit.
-  function engrave(ABCJS, abc) {
+  /** Engrave the score for the width we have, its lines cut where the game's ABC cuts them. */
+  function engrave(ABCJS) {
     const width = layoutWidth();
-    const opts = {
+    const abc = game.abc(state, barsPerLineFor(width));
+    ABCJS.renderAbc(scoreEl, abc, {
       add_classes: true, foregroundColor: 'currentColor', responsive: 'resize', staffwidth: width,
       paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0,
-    };
-    if (width < wideFor()) opts.wrap = { minSpacing: 1.4, maxSpacing: 2.6, preferredMeasuresPerLine: perLineFor(width) };
-    ABCJS.renderAbc(scoreEl, abc, opts);
+    });
+    scoreEl.dataset.abc = abc;
     scoreEl.dataset.width = String(width);
-    lineCards = measureFirstLine();
     layoutGrid(width);
   }
   let resizeTimer = 0;
@@ -216,8 +196,8 @@ export function createApp(game) {
     resizeTimer = setTimeout(() => {
       const width = layoutWidth();
       layoutGrid(width);
-      if (!scoreEl.dataset.abc || !window.ABCJS || String(width) === scoreEl.dataset.width) return;
-      engrave(window.ABCJS, scoreEl.dataset.abc);
+      if (!state.bars || !window.ABCJS || String(width) === scoreEl.dataset.width) return;
+      engrave(window.ABCJS);
       scoreMm = -1; highlightScore(player.state === 'idle' ? -1 : game.scoreIndex(state.plan[Math.max(0, player.currentIndex())]));
     }, 150);
   });
@@ -470,6 +450,7 @@ export function createApp(game) {
     stepStarts: () => state.plan.map((s) => Math.round(s.at * player.sampleRate)),
     scoreReady: () => Boolean(scoreEl.querySelector('svg')),
     cardsPerRow: () => layoutGrid(),
+    barsPerLine: () => barsPerLineFor(layoutWidth()),
     scoreIndexOf: (step) => game.scoreIndex(step),
   };
   return { state, player, say };

@@ -76,22 +76,26 @@ function measureNotes(id, ending) {
 /**
  * The whole minuet as an ABC tune: two staves, the printed repeat of the first half
  * with both endings of bar 8 under a volta bracket, and the second half once.
- * `measures` is the 16 measure numbers in bar order.
+ * `measures` is the 16 measure numbers in bar order. The lines are cut every
+ * `barsPerLine` bars (the print's own eight by default), bar 8 with both its endings
+ * counting as one, so the page can lay its cards out to the same lines.
  */
-export function minuetToAbc(measures, { title = '' } = {}) {
+export function minuetToAbc(measures, { title = '', barsPerLine = 8 } = {}) {
   if (!Array.isArray(measures) || measures.length !== 16) throw new RangeError('need 16 measures');
+  if (!Number.isInteger(barsPerLine) || barsPerLine < 1) throw new RangeError('barsPerLine must be a positive integer');
   const bar = (staff, id, ending) => voiceToAbc(measureNotes(id, ending), staff);
+  const segment = (staff, b) => {
+    if (b === 7) return '[1 ' + bar(staff, measures[7], 'first') + ' :|[2 ' + bar(staff, measures[7], 'second') + ' |]';
+    return bar(staff, measures[b]) + (b === 15 ? ' |]' : ' |');
+  };
   const lines = [];
-  for (const staff of [1, 0]) {
-    let s = staff === 1 ? '[V:1] |: ' : '[V:2] |: ';
-    for (let b = 0; b < 7; b++) s += bar(staff, measures[b]) + ' | ';
-    s += '[1 ' + bar(staff, measures[7], 'first') + ' :|[2 ' + bar(staff, measures[7], 'second') + ' |] ';
-    lines.push(s);
-  }
-  for (const staff of [1, 0]) {
-    let s = staff === 1 ? '[V:1] ' : '[V:2] ';
-    for (let b = 8; b < 16; b++) s += bar(staff, measures[b]) + (b === 15 ? ' |]' : ' | ');
-    lines.push(s);
+  for (let start = 0; start < 16; start += barsPerLine) {
+    for (const staff of [1, 0]) {
+      let s = staff === 1 ? '[V:1] ' : '[V:2] ';
+      if (start === 0) s += '|: ';
+      for (let b = start; b < Math.min(16, start + barsPerLine); b++) s += segment(staff, b) + ' ';
+      lines.push(s.trimEnd());
+    }
   }
   return [
     'X:1',
@@ -103,8 +107,7 @@ export function minuetToAbc(measures, { title = '' } = {}) {
     'V:1 clef=treble',
     'V:2 clef=bass',
     'K:C',
-    lines[0], lines[1],
-    lines[2], lines[3],
+    ...lines,
   ].join('\n') + '\n';
 }
 

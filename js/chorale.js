@@ -80,8 +80,9 @@ export function render(step, sampleRate) {
 export const renderStep = (step, sampleRate) => (step.texture === 'prelude' ? renderPrelude(step, sampleRate) : render(step, sampleRate));
 
 const LEN = { 4: '4', 2: '2', 1: '' };
-/** The chorale as an ABC tune: four voices on two staves, eight bars in two lines; added notes as crotchets and quavers. */
-export function choraleToAbc(bars, keyName, tempo = TEMPO.default) {
+/** The chorale as an ABC tune: four voices on two staves, `barsPerLine` bars to a line; added notes as crotchets and quavers. */
+export function choraleToAbc(bars, keyName, tempo = TEMPO.default, barsPerLine = 4) {
+  if (!Number.isInteger(barsPerLine) || barsPerLine < 1) throw new RangeError('barsPerLine must be a positive integer');
   const voices = ['S', 'A', 'T', 'B'];
   const index = { S: 3, A: 2, T: 1, B: 0 };
   const perVoice = [];
@@ -97,7 +98,7 @@ export function choraleToAbc(bars, keyName, tempo = TEMPO.default) {
       // a crotchet, then quavers beamed together: "C2 DE"; a minim: "C4"
       line += fermata + part.map(([m, u], n) => (n > 0 && u === 1 && part[n - 1][1] === 1 ? '' : n > 0 ? ' ' : '') + name(m) + LEN[u]).join('');
       line += i % 2 === 1 ? (i === 15 ? ' |]' : i === 7 ? ' ||' : ' | ') : ' ';
-      if (i === 7) { lines.push(line); line = `[V:${v}] `; }
+      if ((i + 1) % (2 * barsPerLine) === 0 && i < 15) { lines.push(line.trimEnd()); line = `[V:${v}] `; }
     });
     lines.push(line);
     perVoice.push(lines);
@@ -125,10 +126,9 @@ export const choraleGame = {
   pieceNoun: 'chorale',
   shareTitle: 'A four-part chorale from the dice',
   settingsNote: 'the key, texture, motion, tempo and instrument',
-  wideWidth: (state) => (isPrelude(state) ? 900 : 700),   // above this the ABC's own four-bar lines apply
-  measuresPerLine: (width, state) => (isPrelude(state) ? (width >= 640 ? 4 : width >= 400 ? 2 : 1) : (width >= 520 ? 4 : 2)),
-  // a line of the score holds four bars when wide: eight chords as four voices, four as broken chords
-  cardsPerRow: (state, perLine, wide) => (wide ? 4 : perLine) * (isPrelude(state) ? 1 : 2),
+  // bars to a line of the score at a given page width; a row of cards holds the same line's chords
+  barsPerLine: (width, state) => (isPrelude(state) ? (width >= 640 ? 4 : 2) : (width >= 520 ? 4 : 2)),
+  cardsPerRow: (state, barsPerLine) => barsPerLine * (isPrelude(state) ? 1 : 2),
   defaultSettings: () => ({ ...DEFAULTS }),
   compose,
   cardHtml: (b) => `<b class="roman">${b.chord.html}</b><span class="fn">${b.chord.fn}</span>`,
@@ -148,7 +148,7 @@ export const choraleGame = {
   // a buffer is cached under the step's key, so it must be the sound that key names.
   render: (step, sampleRate) => renderStep(step, sampleRate),
   positionText: (step, index, state) => (isPrelude(state) ? `Playing bar ${step.bar + 1}` : `Playing chord ${step.bar + 1} (bar ${Math.floor(step.bar / 2) + 1})`),
-  abc: (state) => (isPrelude(state) ? preludeToAbc(state.bars, state.settings.key, state.settings.tempo) : choraleToAbc(state.bars, state.settings.key, state.settings.tempo)),
+  abc: (state, barsPerLine) => (isPrelude(state) ? preludeToAbc(state.bars, state.settings.key, state.settings.tempo, barsPerLine) : choraleToAbc(state.bars, state.settings.key, state.settings.tempo, barsPerLine)),
   scoreIndex,
   scoreLabel: (state) => `${isPrelude(state) ? 'Broken-chord prelude' : 'Four-part chorale'} in ${state.settings.key} major: ${chordList(state)}`,
   fileStem: (state) => `chorale-dice-${state.settings.key}-${isPrelude(state) ? 'prelude-' : ''}${state.settings.motion === 'passing' ? '' : state.settings.motion + '-'}${state.pairs.map((p) => p.join('')).join('')}`,

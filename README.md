@@ -58,7 +58,11 @@ WAV, and the exact composition shared by URL.
   `q` and `i`. Seven major keys. Original music, not a historical game, and the page says so.
 - Layout (both pages): the blurb and the controls share the top (side by side from 900 px),
   the score comes next with its summary line, and the sixteen throws follow as compact cards
-  (position, faces and total, reroll and lock as icon buttons, then what the throw chose).
+  (position, faces and total, then what the throw chose, reroll and lock as icon buttons).
+  A row of cards is a line of the score: the controller picks the bars per line for the page
+  width (`game.barsPerLine`), cuts the ABC there (`game.abc(state, barsPerLine)`) rather than
+  letting the engraver wrap, and sizes the grid to the same line (`game.cardsPerRow`), halving
+  where cards would be narrower than 112 px so a line is then exactly two rows.
 
 ## Where the music comes from
 
