@@ -87,30 +87,32 @@ main { max-width: 60rem; margin: 0 auto; }
 .position { flex-basis: 100%; margin: 0; text-align: center; min-height: 1.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .share-url { flex-basis: 100%; font: inherit; font-size: .9rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
 
-.bars { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
-@media (max-width: 400px) { .bars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .die { width: 14px; height: 14px; } }
+/* One row of throws to a line of the score. The controller sets the column count inline from
+   the same width and measures-per-line the engraver uses; these are only the fallbacks. */
+.bars { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+@media (max-width: 1000px) { .bars { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; } }
+@media (max-width: 640px) { .bars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } }
 .bar {
-  position: relative; display: flex; flex-direction: column; gap: 0; padding: 4px 8px 6px;
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr; column-gap: 4px; padding: 4px 4px 5px 7px;
   background: var(--paper-2); border: 1.5px solid var(--line); border-radius: var(--radius); min-height: 0; min-width: 0;
 }
 .bar.is-locked { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
 .bar.is-playing { background: var(--playing); border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
-.bar-head { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.bar-num { font-family: var(--serif); font-size: .9rem; min-width: 1.1em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.lock, .reroll { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
-.reroll { margin-left: auto; }
-.lock { margin-right: -6px; }
+.bar-head { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 3px; min-width: 0; min-height: 24px; }
+.bar-side { grid-column: 2; grid-row: 1 / 3; display: flex; flex-direction: column; justify-content: space-between; gap: 2px; }
+.bar-num { font-family: var(--serif); font-size: .8rem; min-width: 1em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lock, .reroll { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
 .lock:hover, .reroll:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
 .lock svg, .reroll svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .lock[aria-pressed="true"] { color: var(--brass); }
 .lock[aria-pressed="true"] svg rect { fill: currentColor; }
 .lock[aria-pressed="false"] svg .shackle { transform: translate(3px, -3px) rotate(18deg); transform-origin: 6px 9px; }
 .dice { display: inline-flex; align-items: center; gap: 2px; min-height: 22px; }
-.dice .sum { margin-left: 3px; font-variant-numeric: tabular-nums; color: var(--ink); font-size: .9rem; }
-.die { width: 17px; height: 17px; }
+.dice .sum { margin-left: 3px; font-variant-numeric: tabular-nums; color: var(--ink); font-size: .85rem; }
+.die { width: 16px; height: 16px; }
 .die rect { fill: var(--paper); stroke: var(--ink); stroke-width: 1.2; }
 .die circle { fill: var(--ink); }
-.bar-text { margin: 0; font-size: .85rem; color: var(--ink-2); line-height: 1.25; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-text { grid-column: 1; grid-row: 2; margin: 0; font-size: .85rem; color: var(--ink-2); line-height: 1.25; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-text b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .reroll:disabled { opacity: .35; cursor: not-allowed; }
 .summary { margin: 10px 4px 0; color: var(--muted); font-size: .9rem; }
@@ -142,6 +144,7 @@ main { max-width: 60rem; margin: 0 auto; }
 
 .sibling { margin: 10px auto 0; color: var(--muted); font-size: .95rem; }
 .select { font: inherit; min-height: 40px; padding: 0 8px; border: 1.5px solid var(--ink-2); border-radius: 8px; background: var(--paper); color: var(--ink); }
-.bar-text .roman { font-family: var(--serif); font-size: 1.1rem; line-height: 1.1; }
+.bar-text .roman { display: block; font-family: var(--serif); font-size: 1.1rem; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-text .roman sup, .bar-text .roman sub { font-size: .65em; }
-.bar-text .fn { display: block; font-size: .76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+/* the function may take a second line ("cadential six-four"), never a third */
+.bar-text .fn { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: .74rem; line-height: 1.2; color: var(--muted); white-space: normal; overflow: hidden; }

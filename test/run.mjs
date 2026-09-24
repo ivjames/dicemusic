@@ -210,6 +210,16 @@ test('notation: the tune has two staves, the volta over bar 8, and maps plan ste
   assert.deepEqual(plan.map(scoreMeasureIndex), [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   assert.deepEqual(playbackPlan(ids, false).map(scoreMeasureIndex), [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   assert.throws(() => minuetToAbc([1, 2, 3]), RangeError);
+  // lines cut where the page asks, bar 8 with both endings counting as one bar
+  const four = minuetToAbc(ids, { barsPerLine: 4 });
+  assert.equal((four.match(/\[V:1\]/g) || []).length, 4); assert.equal((four.match(/\[V:2\]/g) || []).length, 4);
+  const v1 = four.split('\n').filter((l) => l.startsWith('[V:1]'));
+  assert.ok(v1[0].startsWith('[V:1] |: ') && !v1[1].includes('|:') && v1[1].includes('[1 ') && v1[1].includes(':|[2 ') && v1[3].trimEnd().endsWith('|]'));
+  assert.equal((v1[0].match(/\|/g) || []).length, 5, 'four bars on the first line: the repeat sign and four bar lines');
+  const six = minuetToAbc(ids, { barsPerLine: 6 });
+  assert.equal((six.match(/\[V:1\]/g) || []).length, 3);
+  assert.equal(minuetToAbc(ids), minuetToAbc(ids, { barsPerLine: 8 }));
+  assert.throws(() => minuetToAbc(ids, { barsPerLine: 0 }), RangeError);
 });
 
 // ---------- cache busting ----------
@@ -249,7 +259,7 @@ test('chorale table: 16 columns of 11 known chords; cadences fixed; each column 
   assert.ok(CHORALE_TABLE[16].every((s) => s === 'I'));
   assert.ok(CHORALE_TABLE[15].every((s) => s === 'V' || s === 'V7'));
   for (const p of [1, 3, 5, 9, 11, 13]) assert.ok(CHORALE_TABLE[p].every((s) => ['tonic', 'tonic substitute'].includes(fnOf(s))), `column ${p} is tonic-function`);
-  for (const p of [6, 14]) assert.ok(CHORALE_TABLE[p].every((s) => fnOf(s).includes('predominant')), `column ${p} is predominant`);
+  for (const p of [6, 14]) assert.ok(CHORALE_TABLE[p].every((s) => fnOf(s).includes('pre-dominant')), `column ${p} is predominant`);
   assert.equal(chordFor(0, 7), 'I'); assert.equal(chordFor(14, 7), 'V7'); assert.equal(chordFor(6, 2), 'V7ofV');
   // chords with a tendency tone sit only where the next column is certain to hold its resolution
   const hasDeg = (sym, deg) => CHORDS[sym].tones.some((t) => t[0] === deg && t[1] === 0);
@@ -332,6 +342,10 @@ test('chorale notation: four voices, key signatures, correct spelling of chromat
     const lively = choraleToAbc(composeChorale(bars.map((b) => b.dice), { key, motion: 'lively' }), key, 96);
     assert.ok(lively.includes('Q:1/4=96'));
     assert.ok(/[A-Ga-g][,']*2 [\^_=]*[A-Ga-g][,']*[\^_=]*[A-Ga-g][,']*[ |]/.test(lively.replace(/^\[V:[A-Z]\] /gm, '')), `${key}: lively writes beamed quavers`);
+    const twoBars = choraleToAbc(bars, key, 72, 2);
+    assert.equal(twoBars.split('\n').filter((l) => l.startsWith('[V:S]')).length, 4, 'two bars a line: four lines a voice');
+    assert.ok(twoBars.split('\n').filter((l) => l.startsWith('[V:B]')).every((l) => (l.match(/\|\]|\|\||\|/g) || []).length === 2), 'two bar lines on every line (a double bar or a final bar line counting once)');
+    assert.throws(() => choraleToAbc(bars, key, 72, 0), RangeError);
   }
   // spelling: in F major the raised fourth of V/V is B natural, in D major the lowered sixth of iv is B flat
   assert.equal(keyAccidental('F', 'B'), -1); assert.equal(degreeLetter('F', 4), 'B');
@@ -492,6 +506,10 @@ test('prelude texture: one 12/8 bar per chord at the tempo, sixteen bars, struck
       assert.equal((body.match(/[\^_=]*[A-Ga-g][,']*/g) || []).length, 15 * 6 + 4, `${key} ${v}: six notes a bar and a final chord`);
     }
     assert.ok(/\[[^\]]+\]6-\[[^\]]+\]6 \|\]/.test(abc), 'the last chord is held across the bar');
+    const two = preludeToAbc(bars, key, tempo, 2);
+    assert.equal(two.split('\n').filter((l) => l.startsWith('[V:RH]')).length, 8, 'two bars a line: eight lines');
+    assert.equal(two.split('\n').filter((l) => l.startsWith('[V:RH]')).map((l) => (l.match(/\|/g) || []).length).join(''), '22222222');
+    assert.throws(() => preludeToAbc(bars, key, tempo, 0), RangeError);
   }
   assert.ok(peak < 0.95 && peak > 0.3, `peak ${peak}`);
 });

@@ -56,25 +56,29 @@ export function createApp(game) {
       const li = document.createElement('li');
       li.className = 'bar';
       li.dataset.bar = String(i);
-      // One compact card: the position, the two faces and their total, then reroll and lock as
-      // icon buttons; the text below names what the throw chose. Full wording is in the labels.
+      // One compact card, eight to a row at full width: the position, the two faces and their
+      // total, then what the throw chose, with reroll and lock stacked as icon buttons on the
+      // right. Full wording is in the labels.
       li.innerHTML = `
         <div class="bar-head">
           <span class="bar-num" aria-hidden="true">${i + 1}</span>
           <span class="dice" aria-hidden="true"></span>
+        </div>
+        <p class="bar-text"></p>
+        <div class="bar-side">
           <button type="button" class="reroll" data-action="reroll" aria-label="Reroll ${noun} ${i + 1}" title="Reroll this ${noun}">
             <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 8.5A6 6 0 1 0 16 11.5"/><path d="M16 4v4.5h-4.5"/></svg>
           </button>
           <button type="button" class="lock" data-action="lock" aria-pressed="false" aria-label="Lock ${noun} ${i + 1}" title="Lock this ${noun}">
             <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path class="shackle" d="M6 9V6.5a4 4 0 0 1 8 0V9"/><rect x="4" y="9" width="12" height="8.5" rx="1.5"/></svg>
           </button>
-        </div>
-        <p class="bar-text"></p>`;
+        </div>`;
       grid.appendChild(li);
     }
   }
 
   function renderBars() {
+    layoutGrid();
     const cards = grid.children;
     for (let i = 0; i < BARS; i++) {
       const li = cards[i];
@@ -143,14 +147,13 @@ export function createApp(game) {
   }
   async function renderScore() {
     const section = $('#score-section');
-    if (!state.bars) { section.hidden = true; scoreEl.innerHTML = ''; return; }
+    if (!state.bars) { section.hidden = true; scoreEl.innerHTML = ''; delete scoreEl.dataset.abc; layoutGrid(); return; }
     section.hidden = false;
-    const abc = game.abc(state);
-    scoreEl.dataset.abc = abc;
+    const gen = state.generation;
     try {
       const ABCJS = await loadAbcjs();
-      if (scoreEl.dataset.abc !== abc) return;       // a newer roll won
-      engrave(ABCJS, abc);
+      if (state.generation !== gen || !state.bars) return;       // a newer roll or setting won
+      engrave(ABCJS);
       scoreEl.setAttribute('aria-label', game.scoreLabel(state));
       $('#save-score').disabled = false;
       scoreMm = -1;
@@ -160,29 +163,41 @@ export function createApp(game) {
       $('#save-score').disabled = true;
     }
   }
-  // Lay the score out for the width we have. Wide: the ABC's own line breaks. Narrower: let
-  // abcjs re-flow into shorter systems at a readable size rather than shrinking to fit.
-  function engrave(ABCJS, abc) {
-    // Measure the section, not the score box: a previous render must not feed back into the next.
-    const width = Math.max(300, $('#score-section').clientWidth - 26);
-    const opts = {
+  // The score is cut into lines and the card grid into rows from one number, the bars to a
+  // line at the page's width, so a row of cards is a line of the score, or a clean half of
+  // one where the cards would be too narrow. Measure the page column, not the score box: a
+  // previous render must not feed back into the next.
+  function layoutWidth() { return Math.max(300, document.querySelector('main').clientWidth - 26); }
+  function barsPerLineFor(width) { return game.barsPerLine ? game.barsPerLine(width, state) : (width >= 860 ? 8 : width >= 620 ? 6 : width >= 440 ? 4 : 2); }
+  const CARD_MIN_WIDTH = 112;   // below this the head row of a card no longer fits
+  function layoutGrid(width = layoutWidth()) {
+    const bpl = barsPerLineFor(width);
+    let n = game.cardsPerRow ? game.cardsPerRow(state, bpl) : bpl;
+    n = Math.max(1, Math.min(16, Math.round(n)));
+    while (n > 2 && n % 2 === 0 && n * CARD_MIN_WIDTH > grid.clientWidth) n /= 2;   // halve, never split a line unevenly
+    grid.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+    return n;
+  }
+  /** Engrave the score for the width we have, its lines cut where the game's ABC cuts them. */
+  function engrave(ABCJS) {
+    const width = layoutWidth();
+    const abc = game.abc(state, barsPerLineFor(width));
+    ABCJS.renderAbc(scoreEl, abc, {
       add_classes: true, foregroundColor: 'currentColor', responsive: 'resize', staffwidth: width,
       paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0,
-    };
-    const perLine = game.measuresPerLine ? game.measuresPerLine(width, state) : (width >= 620 ? 6 : width >= 440 ? 4 : 3);
-    const wide = typeof game.wideWidth === 'function' ? game.wideWidth(state) : (game.wideWidth || 860);
-    if (width < wide) opts.wrap = { minSpacing: 1.4, maxSpacing: 2.6, preferredMeasuresPerLine: perLine };
-    ABCJS.renderAbc(scoreEl, abc, opts);
+    });
+    scoreEl.dataset.abc = abc;
     scoreEl.dataset.width = String(width);
+    layoutGrid(width);
   }
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
-    if (!scoreEl.dataset.abc || !window.ABCJS) return;
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      const width = Math.max(300, $('#score-section').clientWidth - 26);
-      if (String(width) === scoreEl.dataset.width) return;
-      engrave(window.ABCJS, scoreEl.dataset.abc);
+      const width = layoutWidth();
+      layoutGrid(width);
+      if (!state.bars || !window.ABCJS || String(width) === scoreEl.dataset.width) return;
+      engrave(window.ABCJS);
       scoreMm = -1; highlightScore(player.state === 'idle' ? -1 : game.scoreIndex(state.plan[Math.max(0, player.currentIndex())]));
     }, 150);
   });
@@ -434,6 +449,9 @@ export function createApp(game) {
     exportBytes: async () => { const sr = player.ctx ? player.sampleRate : 44100; if (state.renderedRate !== sr) { state.rendered.clear(); state.renderedRate = sr; } await ensureRendered(); return new Uint8Array(encodeWav(mixdown(state.plan, state.rendered, sr), sr)); },
     stepStarts: () => state.plan.map((s) => Math.round(s.at * player.sampleRate)),
     scoreReady: () => Boolean(scoreEl.querySelector('svg')),
+    cardsPerRow: () => layoutGrid(),
+    barsPerLine: () => barsPerLineFor(layoutWidth()),
+    scoreIndexOf: (step) => game.scoreIndex(step),
   };
   return { state, player, say };
 }
